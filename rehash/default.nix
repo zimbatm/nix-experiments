@@ -26,6 +26,10 @@ let
       # It would be nice to have this, but then it adds the drv to the build
       # inputs.
       #disallowedReferences = [ drv ];
+
+      meta = (drv.meta or {}) // {
+        orig = drv;
+      };
     };
 in
   rehash
