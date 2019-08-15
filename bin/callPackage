@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#
+# Usage: callPackage [path] [...nix-build args]
+#
+# A version of nix-build that uses nixpkgs.callPackage to fill in the
+# arguments.
+#
+# Let's say you are hacking on pkgs/applications/misc/hello/default.nix
+# The problem is that default.nix takes a number of arguments and thus cannot
+# be called with nix-build directly. So first you have to edit
+# pkgs/top-level/all-packages.nix and figure out which attribute the package
+# maps to, then call `nix-build -A hello` on the repo root.
+#
+# Instead, use `callPackage pkgs/applications/misc/hello/default.nix`. You
+# might already be in the `pkgs/applications/misc/hello` folder in which case
+# `callPackage` is enough.
+set -uo pipefail
+
+src=${1:-}
+args=${2:-}
+shift 2
+
+exec nix-build \
+  --no-out-link \
+  -I "src=$src" \
+  --expr "with import <nixpkgs> {}; callPackage <src> {$args}" \
+  "$@"
