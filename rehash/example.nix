@@ -1,6 +1,6 @@
 let
   pkgs = import <nixpkgs> {};
-  rehash = pkgs.callPackage ./rehash.nix {};
+  rehash = pkgs.callPackage ./. {};
   runCommand = pkgs.runCommand;
 
   packageA = runCommand "package-a" {} ''

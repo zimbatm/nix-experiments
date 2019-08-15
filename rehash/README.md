@@ -1,6 +1,6 @@
 # rehash - Nix CAS for a single drv
 
-**STATUS: needs finishing**
+**STATUS: success!**
 
 Nix always rebuilds derivations whenever any of the inputs has changed. This
 is an awesome property because it solves cache invalidation.
@@ -27,10 +27,10 @@ that data came from.
 ## Example
 
 [$ example.nix](example.nix)
-```nix
+```
 let
   pkgs = import <nixpkgs> {};
-  rehash = pkgs.callPackage ./rehash.nix {};
+  rehash = pkgs.callPackage ./. {};
   runCommand = pkgs.runCommand;
 
   packageA = runCommand "package-a" {} ''
@@ -77,27 +77,30 @@ dependency anymore.
 These two outputs should be the same:
 `$ nix-instantiate example.nix -A withRehash.packageB`
 ```
-/nix/store/mdf8zkgfcc6z8v2g5f6n2spb3vbysypy-package-b.drv
+/nix/store/imfcfww8z34w7cmzlrl8kaxsiz6b7rzl-package-b.drv
 ```
 `$ nix-instantiate example.nix -A "withRehash.packageB'"`
 ```
-/nix/store/p9alkrhi6k52r8mslbizpwpr1yir1imp-package-b.drv
+/nix/store/imfcfww8z34w7cmzlrl8kaxsiz6b7rzl-package-b.drv
 ```
 ## TODO
 
-Figure out why ^^^ the output is not the same.
+See if `builtins.seq` could be used to force the build of packageA.
 
 ## Known issues
 
 This is not the existential store, it's just a hack.
 
-Rebuild will happen if the drv name changes.
-
-There are a few dependencies like stdenv, default-builder and bash that will
-still cause a rebuild.
-
-This approach doesn't work if the input drv contains self-references because
-it's content will always be different between rebuilds.
+The input drv **must** be realized into the store before instantiating the
+rehashed drv. This is a bit cumbersome because it requires to keep track of
+that. Otherwise you will see an error such as:
 
 > error: getting attributes of path '/nix/store/gnaf8p8s8qk68f18f1pqy8cks2la6crc-package-a': No such file or directory
 
+Rebuild will happen if the drv name changes.
+
+There are also a few dependencies like stdenv, default-builder and bash that
+will still cause a rebuild.
+
+This approach doesn't work if the input drv contains self-references because
+it's content will always be different between rebuilds.
