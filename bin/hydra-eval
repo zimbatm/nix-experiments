@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#
+# This scripts tries to emulates how hydra is evaluating code. Adapted from
+# https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/eval-release.nix
+#
+# Usage: hydra-eval <nix-file>
+set -euo pipefail
+
+showUsage() {
+  log "Usage: $0 <nix-file>"
+}
+
+log() {
+  echo "$*" >&2
+}
+
+## Main ##
+
+here=$(dirname "$0")
+release=${1:-}
+
+if [[ -z $release ]]; then
+  log "ERR: nix-file not given. Use $0 --help for usage."
+fi
+
+if [[ $release = "-h" || $release = "--help" ]]; then
+  showUsage
+  exit
+fi
+
+if [[ -z ${VERBOSE:-} ]]; then
+  log "You may set VERBOSE=1 to see debug output or to any other non-empty string to make this script completely silent"
+fi
+unset HOME NIXPKGS_CONFIG # Force empty config
+
+# With the default heap size (380MB), nix-instantiate fails:
+# Too many heap sections: Increase MAXHINCR or MAX_HEAP_SECTS
+export GC_INITIAL_HEAP_SIZE=${GC_INITIAL_HEAP_SIZE:-2000000000} # 2GB
+
+nix-instantiate \
+  --eval-only \
+  --show-trace \
+  --strict \
+  --xml \
+  -I "release=$release" \
+  "$here/hydra-eval.nix"
