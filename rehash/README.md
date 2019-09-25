@@ -2,19 +2,30 @@
 
 **STATUS: success!**
 
+## Motivation
+
+I was looking at [this PR that adds `builtins.intern` to
+Nix](https://github.com/NixOS/nix/pull/1502) and wanted to better understand
+the implications.
+
+## Intro
+
 Nix always rebuilds derivations whenever any of the inputs has changed. This
-is an awesome property because it solves cache invalidation.
+is an awesome property because it solves cache invalidation. Completely. Let
+me say this again; Nix solves one of the 3 hardest problems in the computing
+industry. Ahem :)
 
     A -> B -> C
 
 Let's say that A, B and C are derivations. Whenever A changes, both B and C
 will rebuild. If B changes, only C will rebuild. Here we have a list but
-usually it's more like a tree where A has B', B''... as dependents and it also
-goes much deeper.
+usually the structure is like a tree where A has B', B''... as dependents and
+it also goes much deeper.
 
 Now let's imagine that C is a very expensive operations. And when B rebuilds,
 it usually spits the same output. C gets the same input but which has a
-different name.
+different name. So in that case Nix will always rebuild. It solves the cache
+invalidation but at the expense of more computational overhead.
 
 This project introduces `rehash`. The goal is to avoid rebuilding C if the
 output of B is the same.
@@ -24,7 +35,7 @@ output of B is the same.
 For that we take B, read it's content into a new derivation, and forget where
 that data came from.
 
-## Example
+## Example usage
 
 [$ example.nix](example.nix)
 ```

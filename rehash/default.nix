@@ -32,4 +32,5 @@ let
       };
     };
 in
+  # TODO: use builtins.seq to force the build of the drv before rehash?
   rehash
