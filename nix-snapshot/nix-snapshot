@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+#
+# TODO: rebuild this
+#
+# Usage: nix-snapshot [options] <path> [<attribute>...]
+set -euo pipefail
+
+nixLib=$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/lib.nix")
+
+# TODO: proper add arg parsing
+path=$(readlink -f "$1")
+shift
+
+echo "path=$path"
+
+# TODO: make sure this is not GCed
+jsonData=$(nix-build "$nixLib" \
+  --no-out-link \
+  --argstr path "$path" \
+  -A info
+)
+
+storePath=$(jq -r .storePath < "$jsonData")
+echo "storePath=$storePath"
+cacheDir=$(jq -r .cacheDir < "$jsonData")
+echo "cacheDir=$cacheDir"
+
+# remove all the evaluated attributes
+
+attrs=()
+nixArgs=()
+for attr in "$@"; do
+  # if it doesn't exist
+  if ! [[ -e "$cacheDir/$attr" ]]; then
+    attrs+=("$attr")
+    nixArgs+=(-A "$attr")
+  fi
+done
+
+if [[ ${#attrs[@]} = 0 ]]; then
+  echo "abort: no attributes left to evaluate"
+  exit
+fi
+
+
+# build 
+outDir=$(mktemp -d)
+at_exit() {
+  rm -rf "$outDir"
+}
+trap at_exit EXIT
+
+unset HOME
+unset NIX_PATH
+
+nix-build --out-link "$outDir/result" "$storePath" "${nixArgs[@]}"
+
+# move the links back into the cache
+
+mkdir -p "$cacheDir"
+
+for ((i = 0; i < ${#attrs[@]}; ++i)); do
+  if [[ $i = 0 ]]; then
+    source=$outDir/result
+  else
+    source=$outDir/result-$i
+  fi
+  
+  mv -v "$source" "$cacheDir/$attr"
+done
+
+# now check if there is anything left in the folder
+
+if [[ $(find "$outDir" -type l | wc -l) -gt 0 ]]; then
+  echo oops, not all files got symlinked back
+  find "$outDir"
+  exit 1
+fi
