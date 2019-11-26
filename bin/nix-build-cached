@@ -7,7 +7,7 @@
 set -euo pipefail
 
 IFS=$'\n'
-expr=$0.nix
+expr=$(readlink -f "$0").nix
 nix_file=${1:-.}
 attr=${2:-}
 

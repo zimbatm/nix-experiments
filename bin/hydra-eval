@@ -16,7 +16,7 @@ log() {
 
 ## Main ##
 
-here=$(dirname "$0")
+nix_file=$(readlink -f "$0").nix
 release=${1:-}
 
 if [[ -z $release ]]; then
@@ -44,4 +44,4 @@ nix-instantiate \
   --strict \
   --xml \
   -I "release=$release" \
-  "$here/hydra-eval.nix"
+  "$nix_file"
