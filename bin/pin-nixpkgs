@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+#
+# A small script that generates pinned version of nixpkgs.
+#
+# Usage: $0 [<channel-name>]
+set -euo pipefail
+
+usage() {
+  echo "Usage: $0 <channel-name>" >&2
+  exit 1
+}
+
+log() {
+  echo "$*" >&2
+}
+
+owner=NixOS
+repo=nixpkgs-channels
+branch=${1:-nixos-unstable}
+
+log "resolving git commit for $branch..."
+rev=$(curl -sfL "https://api.github.com/repos/$owner/$repo/git/refs/heads/$branch" | jq -r .object.sha)
+
+url=https://github.com/$owner/$repo/archive/$rev.tar.gz
+
+log "finding sha256 for $url..."
+
+sha256=$(nix-prefetch-url --unpack "$url")
+
+cat <<NEW_SOURCE
+# Generated with $0 $*
+builtins.fetchTarball {
+  url = "$url";
+  sha256 = "$sha256";
+}
+NEW_SOURCE
