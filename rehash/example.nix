@@ -18,21 +18,21 @@ let
       echo ${packageA} > $out
     '';
 in
-  rec {
-    inherit packageA packageA';
+rec {
+  inherit packageA packageA';
 
-    withoutRehash = {
-      packageB = mkPackageB { packageA = packageA; };
-      packageB' = mkPackageB { packageA = packageA'; };
-    };
+  withoutRehash = {
+    packageB = mkPackageB { packageA = packageA; };
+    packageB' = mkPackageB { packageA = packageA'; };
+  };
 
-    withRehash = {
-      packageB = mkPackageB { packageA = rehash packageA; };
-      packageB' = mkPackageB { packageA = rehash packageA'; };
-    };
+  withRehash = {
+    packageB = mkPackageB { packageA = rehash packageA; };
+    packageB' = mkPackageB { packageA = rehash packageA'; };
+  };
 
-    test =
-      assert withRehash.packageB.outPath == withRehash.packageB'.outPath;
-      true
-      ;
-  }
+  test =
+    assert withRehash.packageB.outPath == withRehash.packageB'.outPath;
+    true
+  ;
+}

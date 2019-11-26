@@ -11,4 +11,4 @@ let
     strings = import ./strings.nix types;
   };
 in
-  types
+types

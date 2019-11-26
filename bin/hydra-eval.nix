@@ -13,7 +13,7 @@ let
 
   trace = if getEnv "VERBOSE" == "1" then builtins.trace else (x: y: y);
 
-  rel = import <release> { };
+  rel = import <release> {};
 
   # Add the ‘recurseForDerivations’ attribute to ensure that
   # nix-instantiate recurses into nested attribute sets.
@@ -24,8 +24,8 @@ let
         if (tryEval attrs.drvPath).success
         then { inherit (attrs) name drvPath; }
         else { failed = true; }
-      else { recurseForDerivations = true; } //
-           mapAttrs (n: v: let path' = path ++ [n]; in trace path' (recurse path' v)) attrs
-    else { };
+      else { recurseForDerivations = true; } // mapAttrs (n: v: let path' = path ++ [ n ]; in trace path' (recurse path' v)) attrs
+    else {};
 
-in recurse [] rel
+in
+recurse [] rel

@@ -8,7 +8,7 @@ rec {
 
   optional = cond: x: if cond then x else empty;
 
-  empty = { };
+  empty = {};
 
   isEmpty = x: x == empty;
 
@@ -30,8 +30,8 @@ rec {
   intersect = builtins.intersectAttrs;
 
   # filter = pred: set:
-    # lists.toAttrs
-      # (lists.concatMap
-        # (name: let v = set.${name}; in if pred name v then [(nameValuePair name v)] else []) (keys set));
+  # lists.toAttrs
+  # (lists.concatMap
+  # (name: let v = set.${name}; in if pred name v then [(nameValuePair name v)] else []) (keys set));
 
 }

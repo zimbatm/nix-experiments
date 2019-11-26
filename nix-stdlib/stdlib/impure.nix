@@ -1,4 +1,4 @@
-{...}:
+{ ... }:
 {
   inherit (builtins)
     getEnv

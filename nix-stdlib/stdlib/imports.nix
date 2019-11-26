@@ -5,9 +5,11 @@
     let
       dirEntries =
         attrs.keys
-          (attrs.filter
-            (k: v: v == "directory")
-            (paths.readDir baseDir));
+          (
+            attrs.filter
+              (k: v: v == "directory")
+              (paths.readDir baseDir)
+          );
 
       absDirs = lists.map (dir: baseDir + "/${dir}") dirEntries;
 

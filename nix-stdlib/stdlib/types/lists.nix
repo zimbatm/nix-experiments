@@ -30,7 +30,7 @@ rec {
 
   isEmpty = x: x == empty;
 
-  singleton = x: [x];
+  singleton = x: [ x ];
 
   slice = builtins.sublist;
 

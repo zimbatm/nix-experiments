@@ -7,4 +7,4 @@ let
     impure = import ./impure stdlib;
   };
 in
-  stdlib
+stdlib
