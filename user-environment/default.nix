@@ -48,7 +48,10 @@ let
   # Generate a nix-env compatible manifest.nix file
   genManifest = drv:
     let
-      outputs = drv.meta.outputsToInstall or [ "out" ];
+      outputs =
+        drv.meta.outputsToInstall or
+          # install the first output
+          [ (head drv.outputs) ];
 
       base = {
         inherit (drv) meta name outPath system type;
