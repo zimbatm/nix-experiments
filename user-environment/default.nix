@@ -60,9 +60,7 @@ let
       };
 
       toOut = name: {
-        "${name}" = {
-          outPath = drv.${name}.outPath;
-        };
+        outPath = drv.${name}.outPath;
       };
 
       outs = lib.genAttrs outputs toOut;

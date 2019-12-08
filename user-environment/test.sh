@@ -19,8 +19,10 @@ nix-env -p ./result -q
 
 log "now installing the same packages imperatively"
 rm -f ./result-profile*
+nix-env -f "$nixpkgs" -p ./result-profile -iA direnv
+nix-env -f "$nixpkgs" -p ./result-profile -iA git
 nix-env -f "$nixpkgs" -p ./result-profile -iA groff
-nix-env -f "$nixpkgs" -p ./result-profile -iA hello
+nix-env -f "$nixpkgs" -p ./result-profile -iA vim
 
 log "the manifest should be the same"
 
