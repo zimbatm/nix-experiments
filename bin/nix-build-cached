@@ -100,6 +100,10 @@ nix-check-cache() {
         if [[ "$old_checksum" != "$current_checksum" ]]; then
           debug "$file checksum changed old: $old_checksum != $current_checksum"
           return 1
+        else
+          # TODO: update the cache file with the new mtime. Otherwise it will
+          #       have to do the expensive checksum on each call.
+          :
         fi
       fi
     else
