@@ -42,4 +42,6 @@ rec {
 
   # sort: (a -> a -> bool) -> [a] -> [a]
   sort = builtins.sort;
+
+  replace = builtins.replaceStrings;
 }

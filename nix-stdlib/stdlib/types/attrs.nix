@@ -34,4 +34,14 @@ rec {
   # (lists.concatMap
   # (name: let v = set.${name}; in if pred name v then [(nameValuePair name v)] else []) (keys set));
 
+  /* Call a function for each attribute in the given set and return
+     the result in a list.
+
+     Example:
+       mapAttrsToList (name: value: name + value)
+          { x = "a"; y = "b"; }
+       => [ "xa" "yb" ]
+  */
+  mapToList = f: attrs:
+    builtins.map (name: f name attrs.${name}) (keys attrs);
 }

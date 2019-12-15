@@ -1,5 +1,6 @@
 let
   types = {
+    attrs = import ./attrs.nix types;
     bools = import ./bools.nix types;
     floats = import ./floats.nix types;
     ints = import ./ints.nix types;
@@ -7,8 +8,9 @@ let
     lists = import ./lists.nix types;
     nulls = import ./nulls.nix types;
     paths = import ./paths.nix types;
-    sets = import ./sets.nix types;
     strings = import ./strings.nix types;
+    # "sets" is used for the generic type dispatcher
+    sets = types.attrs;
   };
 in
 types
