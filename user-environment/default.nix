@@ -23,37 +23,37 @@ let
   stdlib = import ../nix-stdlib;
   toNix = stdlib.toNix;
 in
-# Supporting code
-with builtins;
-let
-  # Generate a nix-env compatible manifest.nix file
-  genManifest = drv:
-    let
-      outputs =
-        drv.meta.outputsToInstall or
-          # install the first output
-          [ (head drv.outputs) ];
+  # Supporting code
+  with builtins;
+  let
+    # Generate a nix-env compatible manifest.nix file
+    genManifest = drv:
+      let
+        outputs =
+          drv.meta.outputsToInstall or
+            # install the first output
+            [ (head drv.outputs) ];
 
-      base = {
-        inherit (drv) meta name outPath system type;
-        out = { inherit (drv) outPath; };
-        inherit outputs;
-      };
+        base = {
+          inherit (drv) meta name outPath system type;
+          out = { inherit (drv) outPath; };
+          inherit outputs;
+        };
 
-      toOut = name: {
-        outPath = drv.${name}.outPath;
-      };
+        toOut = name: {
+          outPath = drv.${name}.outPath;
+        };
 
-      outs = lib.genAttrs outputs toOut;
-    in
-      base // outs;
+        outs = lib.genAttrs outputs toOut;
+      in
+        base // outs;
 
-  writeManifest = derivations:
-    writeText "env-manifest.nix" (
-      toNix (map genManifest derivations)
-    );
-in
-import <nix/buildenv.nix> {
-  inherit derivations;
-  manifest = writeManifest derivations;
-}
+    writeManifest = derivations:
+      writeText "env-manifest.nix" (
+        toNix (map genManifest derivations)
+      );
+  in
+    import <nix/buildenv.nix> {
+      inherit derivations;
+      manifest = writeManifest derivations;
+    }
