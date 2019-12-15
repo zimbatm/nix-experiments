@@ -9,10 +9,9 @@ rec {
     elemAt
     map
     filter
-    fold'
+    foldl'
     genList
     head
-    sort
     isList
     length
     tail
@@ -32,7 +31,17 @@ rec {
 
   singleton = x: [ x ];
 
-  slice = builtins.sublist;
+  slice = start: count: list:
+    let
+      len = length list;
+    in
+      genList
+        (n: elemAt list (n + start))
+        (
+          if start >= len then 0
+          else if start + count > len then len - start
+          else count
+        );
 
   take = count: slice 0 count;
 

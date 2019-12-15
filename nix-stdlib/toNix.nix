@@ -1,4 +1,4 @@
-{ attrs, strings, generic, ... }:
+{ sets, strings, lists, values, ... }:
 let
   # Escape Nix strings
   stringToNix = str:
@@ -10,17 +10,27 @@ let
     )
     + "\"";
 
-  attrsToNix = value:
+  attrsToNix = attrs:
     strings.concatSep " " (
-      [ "{" ] ++ (attrs.mapToList (k: v: "${k} = ${toNix v};") value)
+      [ "{" ] ++ (sets.mapToList (k: v: "${k} = ${toNix v};") attrs)
       ++ [ "}" ]
     );
 
-  listToNix = value:
+  listToNix = list:
     strings.concatSep " " (
-      [ "[" ] ++ (map toNix value)
+      [ "[" ] ++ (lists.map toNix list)
       ++ [ "]" ]
     );
+
+  table = {
+    "bool" = (x: if x then "true" else "false");
+    "int" = toString;
+    "list" = listToNix;
+    "null" = (x: "null");
+    "path" = toString;
+    "set" = attrsToNix;
+    "string" = stringToNix;
+  };
 
   # Like builtins.JSON but outputs Nix code instead
   # TODO:
@@ -28,17 +38,11 @@ let
   # * escape attrs keys
   # * formatting options?
   toNix = value:
-    {
-      "bool" = (x: if x then "true" else "false");
-      "int" = toString;
-      "list" = listToNix;
-      "null" = (x: "null");
-      "path" = toString;
-      "set" = attrsToNix;
-      "string" = stringToNix;
-    }.${generic.typeOf value} or
-      (x: throw "type '${generic.typeOf value}' not supported")
-      value
+    let
+      t = values.type value;
+    in
+      table.${t} or (x: throw "type '${t}' not supported")
+        value
   ;
 in
 toNix

@@ -9,8 +9,12 @@ let
     nulls = import ./nulls.nix types;
     paths = import ./paths.nix types;
     strings = import ./strings.nix types;
+
     # "sets" is used for the generic type dispatcher
     sets = types.attrs;
+
+    # generic values
+    values = import ./values.nix types;
   };
 in
 types

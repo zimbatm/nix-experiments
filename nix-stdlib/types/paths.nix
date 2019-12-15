@@ -1,6 +1,6 @@
 { ... }:
 {
-  isType = builtins.isPath x;
+  isType = builtins.isPath;
 
   # FIXME: is this correct?
   toType = str: /. + toString str;

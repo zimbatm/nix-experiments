@@ -16,9 +16,9 @@ rec {
 
   has = builtins.hasAttr;
 
-  map = builtins.mapAttr;
+  map = builtins.mapAttrs;
 
-  remove = builtins.remoteAttrs;
+  remove = builtins.removeAttrs;
 
   keys = builtins.attrNames;
 
