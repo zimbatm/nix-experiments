@@ -8,6 +8,7 @@
 # TODO:
 # * also add the drvPath if the keepDerivations nix settings is set
 # * support "disabled" mode that breaks nix-env?
+# * allow to pass old environment and extend it
 # * remove the use of writeText. builtins.toFile forbits the use of references
 #   to derivations, which makes it impossible to create exactly the same
 #   manifest file as `nix-env`.
@@ -18,33 +19,13 @@
   # A list of derivations to install
   derivations
 }:
+let
+  stdlib = import ../nix-stdlib;
+  toNix = stdlib.toNix;
+in
 # Supporting code
 with builtins;
 let
-  # Escape Nix strings
-  stringEscape = str:
-    "\"" + (
-      replaceStrings
-        [ "\\" "\"" "\n" "\r" "\t" ]
-        [ "\\\\" "\\" "\\n" "\\r" "\\t" ]
-        str
-    )
-    + "\"";
-
-  # Like builtins.JSON but to output Nix code
-  toNix = value:
-    if isString value then stringEscape value
-    else if isInt value then toString value
-    else if isPath value then toString value
-    else if true == value then "true"
-    else if false == value then "false"
-    else if null == value then "null"
-    else if isAttrs value then
-      "{ " + concatStringsSep " " (lib.mapAttrsToList (k: v: "${k} = ${toNix v};") value) + " }"
-    else if isList value then
-      "[ ${ concatStringsSep " " (map toNix value) } ]"
-    else throw "type ${typeOf value} not supported";
-
   # Generate a nix-env compatible manifest.nix file
   genManifest = drv:
     let

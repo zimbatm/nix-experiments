@@ -19,17 +19,25 @@ nix-env -p ./result -q
 
 log "now installing the same packages imperatively"
 rm -f ./result-profile*
-nix-env -f "$nixpkgs" -p ./result-profile -iA direnv
-nix-env -f "$nixpkgs" -p ./result-profile -iA git
-nix-env -f "$nixpkgs" -p ./result-profile -iA groff
+# the dependencies have to be installed in reverse order to get
+# the same list
 nix-env -f "$nixpkgs" -p ./result-profile -iA vim
+nix-env -f "$nixpkgs" -p ./result-profile -iA groff
+nix-env -f "$nixpkgs" -p ./result-profile -iA git
+nix-env -f "$nixpkgs" -p ./result-profile -iA rclone
 
 log "the manifest should be the same"
 
-diff -u ./result-profile/manifest.nix ./result/manifest.nix
+# FIXME: indent the toNix output
+./toNix.sh ./result-profile/manifest.nix > profile-manifest.nix
+
+# FIXME: the only diff is the outputs ordering for some reason
+diff -u profile-manifest.nix ./result/manifest.nix
 
 log "and contains the same list of files"
 
 tree ./result-profile/manifest.nix > result-profile.txt
 tree ./result/manifest.nix > result.txt
 diff -u result-profile.txt result.txt
+
+# FIXME: make sure both versions are exactly the same
