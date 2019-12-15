@@ -1,4 +1,4 @@
 # overlay
 self: super: {
-  stdlib = import ./stdlib;
+  stdlib = import ./.;
 }
