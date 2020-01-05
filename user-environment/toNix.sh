@@ -2,7 +2,7 @@
 set -euo pipefail
 
 expr=$(
-cat <<'EXPR'
+  cat <<'EXPR'
 let
   toNix = (import ../nix-stdlib).toNix;
   file = import <file>;

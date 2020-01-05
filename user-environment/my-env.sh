@@ -16,27 +16,28 @@ showUsage() {
 # Main #
 
 case "${1:-}" in
-  help|-h|--help)
-    showUsage
-    ;;
-  edit)
-    "$EDITOR" "$my_env"
-    ;;
-  build)
-    # keep going
-    :
-    ;;
-  switch)
-    # keep going
-    :
-    ;;
-  "")
-    echo "missing command: edit|build|switch"
-    exit 1
-    ;;
-  *)
-    echo "command '$1' unsupported" >&2
-    exit 1
+help | -h | --help)
+  showUsage
+  ;;
+edit)
+  "$EDITOR" "$my_env"
+  ;;
+build)
+  # keep going
+  :
+  ;;
+switch)
+  # keep going
+  :
+  ;;
+"")
+  echo "missing command: edit|build|switch"
+  exit 1
+  ;;
+*)
+  echo "command '$1' unsupported" >&2
+  exit 1
+  ;;
 esac
 
 tmpdir=$(mktemp -d)

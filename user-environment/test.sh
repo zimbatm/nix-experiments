@@ -29,15 +29,15 @@ nix-env -f "$nixpkgs" -p ./result-profile -iA rclone
 log "the manifest should be the same"
 
 # FIXME: indent the toNix output
-./toNix.sh ./result-profile/manifest.nix > profile-manifest.nix
+./toNix.sh ./result-profile/manifest.nix >profile-manifest.nix
 
 # FIXME: the only diff is the outputs ordering for some reason
 diff -u profile-manifest.nix ./result/manifest.nix
 
 log "and contains the same list of files"
 
-tree ./result-profile/manifest.nix > result-profile.txt
-tree ./result/manifest.nix > result.txt
+tree ./result-profile/manifest.nix >result-profile.txt
+tree ./result/manifest.nix >result.txt
 diff -u result-profile.txt result.txt
 
 # FIXME: make sure both versions are exactly the same

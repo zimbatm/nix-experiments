@@ -14,15 +14,16 @@ shift
 echo "path=$path"
 
 # TODO: make sure this is not GCed
-jsonData=$(nix-build "$nixLib" \
-  --no-out-link \
-  --argstr path "$path" \
-  -A info
+jsonData=$(
+  nix-build "$nixLib" \
+    --no-out-link \
+    --argstr path "$path" \
+    -A info
 )
 
-storePath=$(jq -r .storePath < "$jsonData")
+storePath=$(jq -r .storePath <"$jsonData")
 echo "storePath=$storePath"
-cacheDir=$(jq -r .cacheDir < "$jsonData")
+cacheDir=$(jq -r .cacheDir <"$jsonData")
 echo "cacheDir=$cacheDir"
 
 # remove all the evaluated attributes
@@ -37,13 +38,12 @@ for attr in "$@"; do
   fi
 done
 
-if [[ ${#attrs[@]} = 0 ]]; then
+if [[ ${#attrs[@]} == 0 ]]; then
   echo "abort: no attributes left to evaluate"
   exit
 fi
 
-
-# build 
+# build
 outDir=$(mktemp -d)
 at_exit() {
   rm -rf "$outDir"
@@ -60,12 +60,12 @@ nix-build --out-link "$outDir/result" "$storePath" "${nixArgs[@]}"
 mkdir -p "$cacheDir"
 
 for ((i = 0; i < ${#attrs[@]}; ++i)); do
-  if [[ $i = 0 ]]; then
+  if [[ $i == 0 ]]; then
     source=$outDir/result
   else
     source=$outDir/result-$i
   fi
-  
+
   mv -v "$source" "$cacheDir/$attr"
 done
 

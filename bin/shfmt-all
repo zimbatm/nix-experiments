@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#
+# Usage: shfmt-all [DIR]
+set -euo pipefail
+
+dir=${1:-$PWD}
+
+while IFS= read -r -d '' file; do
+  # TODO: fail on weird chars
+  if [[ $(file "$file") =~ Bourne-Again ]]; then
+    echo "$file"
+    echo "$file" >&2
+  fi
+done < <(find "$dir" -path ./.git -prune -o -type f -print0) |
+  xargs --max-args=1018 -- shfmt -i 2 -w
