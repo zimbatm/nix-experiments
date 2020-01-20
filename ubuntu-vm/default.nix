@@ -53,15 +53,15 @@ rec {
     shift 2
 
     args=(
-        -drive "file=$image,format=qcow2"
-        -drive "file=$userdata,format=qcow2"
-        -enable-kvm
-        -m 2G
-        -nographic
-        -serial mon:stdio
-        -smp 2
-        -device "rtl8139,netdev=net0"
-        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:10022-:22"
+      -drive "file=$image,format=qcow2"
+      -drive "file=$userdata,format=qcow2"
+      -enable-kvm
+      -m 2G
+      -nographic
+      -serial mon:stdio
+      -smp 2
+      -device "rtl8139,netdev=net0"
+      -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:10022-:22"
     )
 
     set -x
@@ -103,10 +103,13 @@ rec {
       cat <<WRAP > $out/runVM
       #!${pkgs.stdenv.shell}
       set -euo pipefail
-      # Setup the VM configuration on boot
-      cp --reflink=auto "$out/disk.qcow2" disk.qcow2
-      cp --reflink=auto "$out/userdata.qcow2" userdata.qcow2
-      chmod +w disk.qcow2 userdata.qcow2
+
+      if [[ ! -f disk.qcow2 ]]; then
+        # Setup the VM configuration on boot
+        cp --reflink=auto "$out/disk.qcow2" disk.qcow2
+        cp --reflink=auto "$out/userdata.qcow2" userdata.qcow2
+        chmod +w disk.qcow2 userdata.qcow2
+      fi
 
       # And finally boot qemu with a bunch of arguments
       args=(
