@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# nix-build but cached
+#
+# runtime dependencies: nix, coreutils and bash
+#
+# Usage: ./nix-build-cached <nix_file> [<attribute>]
+set -euo pipefail
+
+IFS=$'\n'
+expr=$0.nix
+nix_file=${1:-.}
+attr=${2:-}
+
+if [[ -d "$nix_file" ]]; then
+  nix_file=$nix_file/default.nix
+fi
+
+out_link=${nix_file%.nix}
+
+if [[ -n "$attr" ]]; then
+  out_link=$out_link-$attr
+fi
+
+out_cache=$out_link.cache
+
+nix_build_args=(
+  --out-link "$out_link"
+)
+
+if [[ -n "$attr" ]]; then
+  nix_build_args+=(--attr "$attr")
+fi
+
+debug() {
+  echo "[debug]: $*" >&2
+}
+
+file-mtime() {
+  stat --format=%Y -- "$1"
+}
+
+file-checksum() {
+  if [[ -f "$1" ]]; then
+    echo "sha256-$(sha256sum --binary -- "$1" | cut -d ' ' -f 1)"
+  else
+    echo -
+  fi
+}
+
+nix-build-logged() {
+  local line path
+
+  rm -f "$out_link"
+
+  export NIX_PATH=nix_file=$nix_file${NIX_PATH:+:$NIX_PATH}
+
+  for line in $(nix-build -vv "${nix_build_args[@]}" "$expr" 2>&1 >/dev/null); do
+    if [[ $line =~ evaluating\ file\ \'([^\']+)\' ]]; then
+      path=${BASH_REMATCH[1]}
+      if [[ -d $path ]]; then
+        path=$path/default.nix
+      fi
+      echo "$path"
+    elif [[ $line =~ ^copied\ source\ \'([^\']+)\' ]]; then
+      path=${BASH_REMATCH[1]}
+      find "$path" -type f
+    elif [[ $line =~ ^instantiated\ .* ]]; then
+      : # just hide it
+    else
+      # re-emit the build out
+      echo "$line" >&2
+    fi
+  done
+}
+
+nix-check-cache() {
+  local line
+  if ! [[ -f $out_cache ]]; then
+    debug "$out_cache doesn't exit"
+    return 1
+  fi
+  for line in $(<"$out_cache"); do
+    if [[ $line =~ ^([0-9]+)\ ([0-9a-z\-]+)\ (.*) ]]; then
+      local old_mtime=${BASH_REMATCH[1]}
+      local old_checksum=${BASH_REMATCH[2]}
+      local file=${BASH_REMATCH[3]}
+
+      if ! [[ -f "$file" || -L "$file" ]]; then
+        debug "$file doesn't exist"
+        return 1
+      fi
+
+      local current_mtime
+      local current_checksum
+      current_mtime=$(file-mtime "$file")
+      current_checksum=$(file-checksum "$file")
+
+      if [[ "$old_mtime" != "$current_mtime" ]]; then
+        #debug "$file mtime changed old: $old_mtime != $current_mtime"
+        if [[ "$old_checksum" != "$current_checksum" ]]; then
+          debug "$file checksum changed old: $old_checksum != $current_checksum"
+          return 1
+        fi
+      fi
+    else
+      debug "$out_cache format incompatible: $line"
+      return 1
+    fi
+  done
+  debug "$out_cache up2date"
+  return 0
+}
+
+nix-build-cached() {
+  local file mtime checksum out_cache_tmp
+
+  out_cache_tmp=$(mktemp)
+
+  for file in $(nix-build-logged | sort -u); do
+    if [[ $file == /nix/store/* ]]; then continue; fi
+    mtime=$(file-mtime "$file")
+    checksum=$(file-checksum "$file")
+    echo "$mtime $checksum $file" >>"$out_cache_tmp"
+  done
+
+  # and also track the out link
+  mtime=$(file-mtime "$out_link")
+  checksum=$(file-checksum "$out_link")
+  echo "$mtime $checksum $out_link" >>"$out_cache_tmp"
+
+  # atomically write the new cache
+  mv "$out_cache_tmp" "$out_cache"
+}
+
+if ! nix-check-cache; then
+  nix-build-cached
+fi
+
+echo "$out_link"

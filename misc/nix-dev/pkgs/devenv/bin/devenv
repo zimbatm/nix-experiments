@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# devenv -- the bash IDE
+#
+# Usage:
+#   devenv <command> <args>...
+#
+set -euo pipefail
+
+## Config ##
+
+top=$(cd "${BASH_SOURCE[0]%/*}/.." && pwd)
+libexec=$top/libexec/devenv
+
+GREEN=
+#RED=
+OFF=
+
+# set the colors if the stderr is a tty
+if [[ -t 2 ]]; then
+  GREEN="\033[32;01m"
+  #RED="\033[31;01m"
+  OFF="\033[0m"
+fi
+
+## Functions
+
+# log <args>...
+log() {
+  echo -e "${GREEN}[devenv]${OFF} $*" >&2
+}
+
+script-usage() {
+  local line
+  read -r _ # ignore the shebang
+  while IFS=$'\n' read -r line; do
+    if [[ $line != "#"* ]]; then
+      break
+    fi
+    line=${line###}
+    line=${line## }
+    echo "$line"
+  done
+}
+
+basename() {
+  : "${1%/}"
+  printf '%s\n' "${_##*/}"
+}
+
+# Lists all the devenv commands
+devenv-commands() {
+  local cmd
+  (
+    for path in "$libexec"/devenv-*; do
+      cmd=$(basename "$path")
+      echo "${cmd:7}"
+    done
+  ) | sort
+}
+
+# Usage: devenv-help [command]
+#
+# Shows this help
+#
+# If a <command> is passed, it shows the documentation for that command
+devenv-help() {
+  if [[ $# == 0 ]]; then
+    script-usage <"${BASH_SOURCE[0]}"
+    echo "Commands:"
+    for cmd in $(devenv-commands); do
+      echo "  $cmd"
+    done
+  else
+    devenv-exec "$1" --help
+  fi
+}
+
+# Usage: devenv-exec <command> <args>...
+devenv-exec() {
+  local cmd=$1
+  shift
+  if [[ -x "$libexec/devenv-$cmd" ]]; then
+    "$libexec/devenv-$cmd" "$@"
+  elif type -t "devenv-$cmd" >/dev/null; then
+    "devenv-$cmd" "$@"
+  else
+    log "command $cmd not found"
+  fi
+}
+
+## Main
+
+if [[ $# -gt 0 ]]; then
+  cmd=$1
+  shift
+else
+  cmd=''
+fi
+
+case "$cmd" in
+help | -h | --help)
+  devenv-help "$@"
+  ;;
+"")
+  log "no command given, use --help for more info"
+  exit 1
+  ;;
+*)
+  devenv-exec "$cmd" "$@"
+  ;;
+esac

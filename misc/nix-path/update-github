@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+#
+# GitHub updater
+set -exuo pipefail
+
+log() {
+  echo "$*" >&2
+}
+
+source=$(cat "${1:--}")
+owner=$(echo "$source" | jq -er '.owner')
+repo=$(echo "$source" | jq -er '.repo')
+ref=$(echo "$source" | jq -er '.ref // ""')
+rev=$(echo "$source" | jq -er '.rev // ""')
+
+log "updating source..."
+
+if [[ -n $rev ]]; then
+  ref=$(curl -sfL https://api.github.com/repos/$owner/$repo/git/refs/heads/$rev | jq -r .object.sha)
+fi
+
+url=https://github.com/$owner/$repo/archive/$ref.tar.gz
+
+log "fetching $url..."
+
+sha256=$(nix-prefetch-url --unpack "$url")
+
+cat <<NEW_SOURCE | tee "$source"
+{
+  "owner": "$owner",
+  "repo": "$repo",
+  "ref": "$ref",
+  "rev": "$rev",
+  "sha256": "$sha256"
+}
+NEW_SOURCE

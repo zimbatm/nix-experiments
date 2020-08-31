@@ -1,0 +1,10 @@
+Usage:
+  nix-src init <path> [uri] [options]
+  nix-src up <path> [uri] [options]
+  nix-src version
+  nix-src help | -h | --help
+
+Options:
+  --repo <owner/repo>
+  --ref <branch>
+  -h --help  Show this screen.

@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Usage: devenv init [options] [target_dir]
+#
+# Options:
+#   --force
+#   --help          Shows this help
+#   --target DIR
+#   --template NAME
+#   --verbose
+set -euo pipefail
+
+# shellcheck source=./common.sh
+source "${BASH_SOURCE[0]%/*}/common.sh"
+
+template_base_dir=$top/share/devenv/templates
+
+verbose_flag=(--verbose)
+force_flag=()
+template_dir=$template_base_dir/default
+target_dir=$PWD
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --force)
+    shift
+    force_flag=(--force)
+    ;;
+  --help)
+    script-usage <"$0"
+    exit
+    ;;
+  --verbose)
+    shift
+    verbose_flag=(--verbose)
+    ;;
+  --target)
+    target_dir=$2
+    shift 2
+    ;;
+  --template)
+    template_dir=template_base_dir/$2
+    shift 2
+    ;;
+  esac
+done
+
+while IFS= read -r -d '' path; do
+  postfix=${path#$template_dir/}
+  dirname=$(dirname "$postfix")
+  mkdir --parents "${verbose_flag[@]}" "$target_dir/$dirname"
+  cp "${verbose_flag[@]}" "${force_flag[@]}" "$path" "$target_dir/$postfix"
+done < <(find "$template_dir" -type f -print0)

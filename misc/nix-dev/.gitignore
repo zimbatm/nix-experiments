@@ -1,0 +1,10 @@
+# env.sh
+/env
+/env.cache
+
+# nix
+result
+result-*
+
+# direnv
+/.envrc.private

@@ -1,0 +1,17 @@
+{
+    "fetcher": "FromGitHub",
+    "src": {
+        "owner": "nixos",
+        "repo": "nixpkgs-channels",
+        "rev": "<sha1>",
+        "sha256": "<sha256>",
+        "meta": {
+            "homepage": "https://github.com/nixos/nixpkgs-channels",
+            "version": "20180120",
+            "branch": "nixos-18.03"
+        }
+    },
+    "update": {
+        "branch": "nixos-18.03"
+    }
+}

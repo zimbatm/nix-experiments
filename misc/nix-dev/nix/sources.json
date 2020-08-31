@@ -1,0 +1,65 @@
+{
+    "cachix": {
+        "homepage": "https://cachix.org",
+        "url": "https://github.com/cachix/cachix/archive/3fa4bd90403e5beb15246eb68464bd0298d48865.tar.gz",
+        "owner": "cachix",
+        "branch": "v0.2.0",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz",
+        "repo": "cachix",
+        "type": "tarball",
+        "sha256": "1jgcf3zwpy1zwrdlkqafvp5xr0b9p1qlbxbdbykllv7zzhaqvk4g",
+        "description": "Command line client for Nix binary cache hosting:",
+        "rev": "3fa4bd90403e5beb15246eb68464bd0298d48865"
+    },
+    "nixpkgs": {
+        "url": "https://github.com/NixOS/nixpkgs-channels/archive/d45ba336b28661b16e6c8bb027bb68ba4e62c1c6.tar.gz",
+        "owner": "NixOS",
+        "branch": "nixos-unstable",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz",
+        "repo": "nixpkgs-channels",
+        "sha256": "0ii2sdmhd5clk0jrqv08wyx49mlmiyz4c1xnc63p83rk1ra7grxp",
+        "description": "Nixpkgs/NixOS branches that track the Nixpkgs/NixOS channels",
+        "rev": "d45ba336b28661b16e6c8bb027bb68ba4e62c1c6"
+    },
+    "bats-assert": {
+        "url": "https://github.com/ztombol/bats-assert/archive/9f88b4207da750093baabc4e3f41bf68f0dd3630.tar.gz",
+        "owner": "ztombol",
+        "branch": "master",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz",
+        "repo": "bats-assert",
+        "sha256": "0z9j2llnx26648qmyd1phgjn91k7n3dw0nmf5izc0bc3cl57prjs",
+        "description": "Common assertions for Bats",
+        "rev": "9f88b4207da750093baabc4e3f41bf68f0dd3630"
+    },
+    "bats-file": {
+        "url": "https://github.com/ztombol/bats-file/archive/2fddb2b831d65cdf2e411f3b47f4677fbb15729c.tar.gz",
+        "owner": "ztombol",
+        "branch": "master",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz",
+        "repo": "bats-file",
+        "sha256": "02wvdnjj4ps6h7q5d8bxn90r08qafnc88hvb6m06rylb50k4181m",
+        "description": "Common filesystem assertions for Bats",
+        "rev": "2fddb2b831d65cdf2e411f3b47f4677fbb15729c"
+    },
+    "bats-support": {
+        "url": "https://github.com/ztombol/bats-support/archive/004e707638eedd62e0481e8cdc9223ad471f12ee.tar.gz",
+        "owner": "ztombol",
+        "branch": "master",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz",
+        "repo": "bats-support",
+        "sha256": "12x6jla3jcv8xc7yv751qll9a3vmh9anw3i8gm27965q6ji6kig6",
+        "description": "Supporting library for Bats test helpers",
+        "rev": "004e707638eedd62e0481e8cdc9223ad471f12ee"
+    },
+    "niv": {
+        "homepage": "https://github.com/nmattia/niv",
+        "url": "https://github.com/nmattia/niv/archive/82bd4999de0215d4de8e5b845d338f8114c590c5.tar.gz",
+        "owner": "nmattia",
+        "branch": "master",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz",
+        "repo": "niv",
+        "sha256": "11gys7rrj1jspibbi5gvdb9liq8n18mrdfvk4r1mmi20zana27ar",
+        "description": "Easy dependency management for Nix projects",
+        "rev": "82bd4999de0215d4de8e5b845d338f8114c590c5"
+    }
+}

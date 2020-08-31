@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+# Manage your NIX_PATH
+#
+# Usage:
+#   nix-path NIX_PATH
+#   nix-path add <name> <url> [opts] - TODO
+#   nix-path eval [--json]
+#   nix-path help [command]
+#   nix-path init
+#   nix-path repl
+#   nix-path run [<command> [<arg>...]]
+#   nix-path shell
+#   nix-path show [--json]
+#   nix-path update [<name>...] - TODO
+#   nix-path version
+#
+set -euo pipefail
+
+### defaults ###
+
+lib_dir=$(dirname "${0%/*}")/lib
+nix_eval=$lib_dir/eval-nix-path.nix
+nix_path_add=$lib_dir/path-add.nix
+source_file=${NIX_SOURCE:-./nix-path.nix}
+
+### utils ###
+
+abort() {
+  echo "abort: $*" >&2
+  exit 1
+}
+
+### functions ###
+
+# utility to extrace the usage from the script header
+script_usage() {
+  local line
+  read -r _ # ignore the shebang
+  while IFS=$'\n' read -r line; do
+    if [[ $line != "#"* ]]; then
+      break
+    fi
+    line=${line###}
+    line=${line## }
+    echo "$line"
+  done
+}
+
+# Usage: nix-path help [command]
+#
+# Shows the help overview.
+#
+# If a <command> is passed, it shows the documentation of that command.
+cmd-help() {
+  if [[ $# == 0 ]]; then
+    script_usage <"$0"
+  else
+    grep \
+      --null-data \
+      --only-matching \
+      --perl-regexp \
+      --regexp="(?s)# Usage: nix-path $1\N*(.#\N*)+" \
+      "${BASH_SOURCE[0]}" | sed 's/^# *//'
+  fi
+}
+
+# Usage: nix-path NIX_PATH
+#
+# Display the calculated value of NIX_PATH
+cmd-NIX_PATH() {
+  cmd-eval --json | jq -r '[ to_entries[] | "\(.key)=\(.value)" ] | join(":")'
+}
+
+# Usage: nix-path add <name> <url> [<key>=<value>...]
+#
+# Add a new fetcher to nix-path.nix with key <name> and url <url>
+cmd-add() {
+  declare -A kv
+  local args=()
+  local expr="{ path"
+
+  if [[ $# -lt 2 ]]; then
+    abort "nix-path add takes at least two arguments. 'nix-path help add' for more details."
+  fi
+  kv[name]=$1
+  kv[url]=$2
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    if [[ $1 =~ ^(.*)=(.*)$ ]]; then
+      kv["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+    else
+      abort "argument should be of the form 'key=value', not '$1' "
+    fi
+    shift
+  done
+
+  # nix requires all arguments to be declared as function arguments
+  for k in "${!kv[@]}"; do
+    expr+=", $k"
+    args+=(--argstr "$k" "${kv[$k]}")
+  done
+  expr+=" }@args: import $nix_path_add args"
+
+  # get the new nix output
+  nix-instantiate --strict --eval --expr "$expr" \
+    --arg "path" "${source_file}" "${args[@]}"
+}
+
+# Usage: nix-path init
+#
+# Setups the project for nix-path, creates the ./nix-path.nix file
+cmd-init() {
+  if [[ -f "${source_file}" ]]; then
+    abort "${source_file} already exists"
+  fi
+
+  cat <<INIT >"${source_file}"
+  # nix-path configuration file
+  {}
+INIT
+}
+
+# Usage: nix-path show [--json]
+#
+# Display the nix-path.nix content
+cmd-show() {
+  nix-instantiate --strict --eval "${source_file}" "$@"
+}
+
+# Usage: nix-path eval [--json]
+#
+# Display the evaluated nix-path.nix content
+cmd-eval() {
+  nix-instantiate --strict --eval "${nix_eval}" --arg "path" "${source_file}" "$@"
+}
+
+# Usage: nix-path repl [<nix-repl-arg>...]
+#
+# Run the nix repl with the proper NIX_PATH set
+cmd-repl() {
+  cmd-run nix repl "$@"
+}
+
+# Usage: nix-path run <command> [<arg>...]
+#
+# Run the command with NIX_PATH set
+cmd-run() {
+  NIX_PATH=$(cmd-NIX_PATH)
+  export NIX_PATH
+  if [[ $# == 0 ]]; then
+    exec bash
+  else
+    exec -- "$@"
+  fi
+}
+
+# Usage: nix-path shell [<nix-shell-arg>...]
+#
+# Load the nix-shell with NIX_PATH set
+cmd-shell() (
+  cmd-run nix-shell "$@"
+)
+
+# Usage: nix-path version
+#
+# Display the nix-path version
+cmd-version() {
+  echo "version 0.0.0"
+}
+
+### main ###
+
+main() {
+  local cmd=${1:-}
+  if [[ $# -gt 0 ]]; then
+    shift
+  fi
+
+  case "$cmd" in
+  help | -h | --help)
+    cmd-help "$@"
+    ;;
+  version | --version)
+    cmd-version "$@"
+    ;;
+  "")
+    abort "no command given, use --help for more info"
+    ;;
+  *)
+    if [[ $(type -t "cmd-$cmd") == function ]]; then
+      "cmd-$cmd" "$@"
+    else
+      abort "unknown command '$cmd', use --help for more info"
+    fi
+    ;;
+  esac
+}
+
+main "$@"

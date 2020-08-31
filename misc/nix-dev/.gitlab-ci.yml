@@ -1,0 +1,13 @@
+image: nixpkgs/nix:nixos-18.09
+
+stages:
+  - build
+  - test
+
+build:
+  stage: build
+  script: ci/build.sh
+
+test:
+  stage: test
+  script: ci/test.sh
