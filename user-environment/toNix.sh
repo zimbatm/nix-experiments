@@ -11,4 +11,4 @@ in
 EXPR
 )
 
-nix eval "($expr)" -I "file=$1" --raw
+nix-instantiate --eval -I "file=$1" --expr "($expr)"

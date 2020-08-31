@@ -23,37 +23,57 @@ let
   stdlib = import ../nix-stdlib;
   toNix = stdlib.toNix;
 in
-  # Supporting code
-  with builtins;
-  let
-    # Generate a nix-env compatible manifest.nix file
-    genManifest = drv:
-      let
-        outputs =
-          drv.meta.outputsToInstall or
-            # install the first output
-            [ (head drv.outputs) ];
+# Supporting code
+with builtins;
+let
+  # Generate a nix-env compatible manifest.nix file
+  genManifest = drv:
+    let
+      outputs =
+        drv.meta.outputsToInstall or
+          # install the first output
+          [ (head drv.outputs) ];
 
-        base = {
-          inherit (drv) meta name outPath system type;
-          out = { inherit (drv) outPath; };
-          inherit outputs;
-        };
+      base = {
+        inherit (drv) meta name outPath system type;
+        out = { inherit (drv) outPath; };
+        inherit outputs;
+      };
 
-        toOut = name: {
-          outPath = drv.${name}.outPath;
-        };
+      toOut = name: {
+        outPath = drv.${name}.outPath;
+      };
 
-        outs = lib.genAttrs outputs toOut;
-      in
-        base // outs;
+      outs = lib.genAttrs outputs toOut;
+    in
+    base // outs;
 
-    writeManifest = derivations:
-      writeText "env-manifest.nix" (
-        toNix (map genManifest derivations)
-      );
-  in
-    import <nix/buildenv.nix> {
-      inherit derivations;
-      manifest = writeManifest derivations;
-    }
+  writeManifest = derivations:
+    writeText "env-manifest.nix" (
+      toNix (map genManifest derivations)
+    );
+in
+derivation {
+  name = "user-environment";
+  system = "builtin";
+  builder = "builtin:buildenv";
+  manifest = writeManifest derivations;
+
+  # !!! grmbl, need structured data for passing this in a clean way.
+  derivations =
+    map
+      (d:
+        [
+          (d.meta.active or "true")
+          (d.meta.priority or 5)
+          (builtins.length d.outputs)
+        ] ++ map (output: builtins.getAttr output d) d.outputs)
+      derivations;
+
+  # Building user environments remotely just causes huge amounts of
+  # network traffic, so don't do that.
+  preferLocalBuild = true;
+
+  # Also don't bother substituting.
+  allowSubstitutes = false;
+}

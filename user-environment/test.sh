@@ -7,9 +7,9 @@ log() {
   echo "# $*" >&2
 }
 
-export NIX_PATH=nixpkgs=channel:nixos-19.09
+export NIX_PATH=nixpkgs=channel:nixos-20.03
 
-nixpkgs=$(nix eval '(<nixpkgs>)')
+nixpkgs=$(nix-instantiate --eval --expr '<nixpkgs>' --strict)
 
 log "building the user profile"
 nix-build ./my-env.nix
