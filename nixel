@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ---------[ functions ]------------
+
+run() {
+  echo "running: ${*%Q}"
+  "$@"
+}
+
+# Heuristic to find the project root
+find_project_root() (
+  while true; do
+    # Look for these files. TODO: make the heuristic more precise.
+    # NOTE: .git can be a file in the case of a git-worktree
+    if [[ -f flake.nix || -e .git ]]; then
+      echo "$PWD"
+      return 0
+    fi
+    # Abort when reaching the root folder
+    if [[ $PWD == / || $PWD == // ]]; then
+      return 1
+    fi
+    cd ..
+  done
+)
+# Like find_project_root but memoized. Will set $project_root.
+load_project_root() {
+  if [[ -n ${project_root:-} ]]; then
+    return
+  fi
+  project_root=$(find_project_root)
+  if [[ -z $project_root ]]; then
+    echo "ERROR: project root not found"
+    exit 1
+  fi
+}
+
+# transforms a relative target to an absolute one
+# TODO: fail if the target points outside of the project root
+# TODO: cleanup the path to remove trailing /
+# Assumes that load_project_root was called previously
+expand_target() {
+  realpath --relative-to="$project_root" "$PWD/$1"
+}
+
+# Transform an absolute target into a Nix attribute path
+# TODO: handle : as well?
+target_to_attr() {
+  echo "${1//\//.}"
+}
+
+# ---------[ commands ]------------
+
+cmd_help() {
+  cat <<USAGE
+Usage: nixel <command> [options]
+
+Commands:
+* build <target>        builds and runs one or more targets
+* run <target> [...<args>]   builds and runs the target
+* -h, --help:                shows this help
+USAGE
+}
+
+cmd_build() {
+  load_project_root
+  local target=$1 target_path attr_path
+  
+  # transform the target into a fully-qualified target
+  target_path=$(expand_target "$target")
+  # get the Nix attribute out of the target
+  attr_path=$(target_to_attr "$target_path")
+
+  # TODO: instead of --no-out-link, create stable output links relative to the
+  #       project root. This will require to evaluate the expression twice.
+  run nix-build --no-out-link "$project_root" -A "$attr_path"
+}
+
+cmd_run() {
+  load_project_root
+  local target=$1
+  shift
+  out=$(cmd_build "$target")
+  "$out" "$@"
+}
+
+# ----------[ main ]-------------
+
+case "${1:-}" in
+  build)
+    shift
+    cmd_build "$@"
+    ;;
+  run)
+    shift
+    cmd_run "$@"
+    ;;
+  help | -h | --help)
+    cmd_help "$@"
+    exit
+    ;;
+  "")
+    echo "ERROR: missing command. Run --help for usage."
+    exit 1
+    ;;
+  *)
+    echo "ERROR: unknown command $1. Run --help for usage."
+    exit 1
+    ;;
+esac
