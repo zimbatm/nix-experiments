@@ -3,5 +3,5 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
-out=$(nix-build -A prepare)
-$out/runVM
+out=$(nix-build -A noSnapshot)
+"$out/runVM" -nographic

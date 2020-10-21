@@ -3,4 +3,5 @@ set -euo pipefail
 
 # use the insecure vagrant key
 chmod 0600 ./vagrant
-ssh -i ./vagrant ubuntu@127.0.0.1 -p 10022 "$@"
+export TERM=xterm
+exec ssh -i ./vagrant ubuntu@127.0.0.1 -p 10022 "$@"

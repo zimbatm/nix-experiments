@@ -10,6 +10,12 @@ rec {
     hash = "sha256-pyDDQGbc5VIRNMDvpj1STFP0DGjbJM8WHXWTVqJKrQ4=";
   };
 
+  config = {
+    cpus = 4;
+    memory = "16G";
+    disk = "128G";
+  };
+
   # This is the cloud-init config
   cloudInit = {
     ssh_authorized_keys = [
@@ -56,10 +62,9 @@ rec {
       -drive "file=$image,format=qcow2"
       -drive "file=$userdata,format=qcow2"
       -enable-kvm
-      -m 2G
-      -nographic
+      -m ${config.memory}
       -serial mon:stdio
-      -smp 2
+      -smp ${toString config.cpus}
       -device "rtl8139,netdev=net0"
       -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:10022-:22"
     )
@@ -75,6 +80,44 @@ rec {
     chmod 0600 "$sshKey"
     ssh -i "$sshKey" ubuntu@127.0.0.1 -p 10022 "$@"
   '';
+
+  noSnapshot = runCommand "no-snapshot" { buildInputs = [ pkgs.qemu ]; }
+    ''
+      # Make some room on the root image
+      cp --reflink=auto "${image}" disk.qcow2
+      chmod +w disk.qcow2
+      qemu-img resize disk.qcow2 +${config.disk}
+
+      mkdir $out
+      mv disk.qcow2 $out/disk.qcow2
+      ln -s ${userdata} $out/userdata.qcow2
+
+      cat <<WRAP > $out/runVM
+      #!${pkgs.stdenv.shell}
+      set -euo pipefail
+
+      if [[ ! -f disk.qcow2 ]]; then
+        # Setup the VM configuration on boot
+        cp --reflink=auto "$out/disk.qcow2" disk.qcow2
+        cp --reflink=auto "$out/userdata.qcow2" userdata.qcow2
+        chmod +w disk.qcow2 userdata.qcow2
+      fi
+
+      # And finally boot qemu with a bunch of arguments
+      args=(
+        # Share the nix folder with the guest
+        #-virtfs "local,security_model=passthrough,id=fsdev0,path=\$PWD,readonly,mount_tag=hostshare"
+        -virtfs "local,security_model=passthrough,id=fsdev0,path=/home/zimbatm/go/src/gerrit.heavisoft.kittyhawk.aero,mount_tag=hostshare"
+      )
+
+      echo "Starting VM."
+      echo "To login: ubuntu / ubuntu"
+      echo "To quit: type 'Ctrl+a c' then 'quit'"
+      echo "Press enter in a few seconds"
+      exec ${runVM} disk.qcow2 userdata.qcow2 "\''${args[@]}" "\$@"
+      WRAP
+      chmod +x $out/runVM
+    '';
 
   # Prepare the VM snapshot for faster resume.
   prepare = runCommand "prepare"
@@ -113,17 +156,14 @@ rec {
 
       # And finally boot qemu with a bunch of arguments
       args=(
-        #-loadvm prepare
-        #-vga virtio
-        # Share the nix folder with the guest
-        -virtfs "local,security_model=passthrough,id=fsdev0,path=\$PWD,readonly,mount_tag=hostshare"
+        -loadvm prepare
       )
 
       echo "Starting VM."
       echo "To login: ubuntu / ubuntu"
       echo "To quit: type 'Ctrl+a c' then 'quit'"
       echo "Press enter in a few seconds"
-      exec ${runVM} disk.qcow2 userdata.qcow2 "\''${args[@]}"
+      exec ${runVM} disk.qcow2 userdata.qcow2 "\''${args[@]}" "\$@"
       WRAP
       chmod +x $out/runVM
     '';
