@@ -1,13 +1,13 @@
 let
-  pkgs = import (builtins.fetchTarball { url = "channel:nixos-19.09"; }) {};
+  pkgs = import (builtins.fetchTarball { url = "channel:nixos-20.09"; }) {};
   inherit (pkgs) runCommand;
 
-  img_orig = "ubuntu-18.04-server-cloudimg-amd64.img";
+  img_orig = "ubuntu-20.04-server-cloudimg-amd64.img";
 in
 rec {
   image = pkgs.fetchurl {
-    url = "https://cloud-images.ubuntu.com/releases/18.04/release/${img_orig}";
-    hash = "sha256-pyDDQGbc5VIRNMDvpj1STFP0DGjbJM8WHXWTVqJKrQ4=";
+    url = "https://cloud-images.ubuntu.com/releases/focal/release-20201102/${img_orig}";
+    hash = "sha256-6/jnDBe5WmGy3K+EajY3yZyvQ0itcUcNOnAf0aTFOUY=";
   };
 
   config = {
