@@ -1,5 +1,5 @@
 let
-  pkgs = import (builtins.fetchTarball { url = "channel:nixos-20.09"; }) {};
+  pkgs = import (builtins.fetchTarball { url = "channel:nixos-20.09"; }) { };
   inherit (pkgs) runCommand;
 
   img_orig = "ubuntu-20.04-server-cloudimg-amd64.img";
@@ -17,35 +17,39 @@ rec {
   };
 
   # This is the cloud-init config
-  cloudInit = {
-    ssh_authorized_keys = [
-      (builtins.readFile ./vagrant.pub)
-    ];
-    password = "ubuntu";
-    chpasswd = {
-      list = [
-        "root:root"
-        "ubuntu:ubuntu"
-      ];
-      expire = false;
-    };
-    ssh_pwauth = true;
-    mounts = [
-      [ "hostshare" "/mnt" "9p" "defaults,trans=virtio,version=9p2000.L" ]
-    ];
-  };
+  cloudInit =
+    let
+      data = {
+        ssh_authorized_keys = [
+          (builtins.readFile ./vagrant.pub)
+        ];
+        password = "ubuntu";
+        chpasswd = {
+          list = [
+            "root:root"
+            "ubuntu:ubuntu"
+          ];
+          expire = false;
+        };
+        ssh_pwauth = true;
+        mounts = [
+          [ "hostshare" "/mnt" "9p" "defaults,trans=virtio,version=9p2000.L" ]
+        ];
+      };
+    in
+    pkgs.writeText
+      "cloud-init.yaml"
+      "#cloud-config\n${builtins.toJSON data}";
 
   # Generate the initial user data disk. This containst extra configuration
   # for the VM.
   userdata = runCommand
     "userdata.qcow2"
-    { buildInputs = [ pkgs.cloud-utils pkgs.yj pkgs.qemu ]; }
+    {
+      buildInputs = [ pkgs.cloud-utils pkgs.qemu ];
+    }
     ''
-      {
-        echo '#cloud-config'
-        echo '${builtins.toJSON cloudInit}' | yj -jy
-      } > cloud-init.yaml
-      cloud-localds userdata.raw cloud-init.yaml
+      cloud-localds userdata.raw ${cloudInit}
       qemu-img convert -p -f raw userdata.raw -O qcow2 "$out"
     '';
 
