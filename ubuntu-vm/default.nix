@@ -110,8 +110,7 @@ rec {
       # And finally boot qemu with a bunch of arguments
       args=(
         # Share the nix folder with the guest
-        #-virtfs "local,security_model=passthrough,id=fsdev0,path=\$PWD,readonly,mount_tag=hostshare"
-        -virtfs "local,security_model=passthrough,id=fsdev0,path=/home/zimbatm/go/src/gerrit.heavisoft.kittyhawk.aero,mount_tag=hostshare"
+        -virtfs "local,security_model=passthrough,id=fsdev0,path=\$PWD,readonly,mount_tag=hostshare"
       )
 
       echo "Starting VM."
