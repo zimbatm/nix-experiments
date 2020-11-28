@@ -1,6 +1,7 @@
 let
   writeText = import ./writeText.nix;
   toNix = import ./toNix.nix;
+  pkgs = import <nixpkgs> {};
 in
 {
   xxx = writeText {
@@ -23,5 +24,14 @@ in
         a = "a";
       };
     };
+  };
+
+  # A file that contains another reference to the store.
+  withRef = writeText {
+    name = "withRef";
+    text = ''
+      #!${pkgs.bash}/bin/bash
+      echo XXX
+    '';
   };
 }
