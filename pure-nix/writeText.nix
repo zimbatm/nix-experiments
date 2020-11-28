@@ -6,7 +6,10 @@
 , system ? builtins.currentSystem
 }:
 derivation {
-  inherit name text system;
+  inherit name system;
+
+  # The `cat` implementation below can only read lines that end in \n
+  text = text + "\n";
 
   # Pure sh implementation of cat
   cat = ''
