@@ -2,7 +2,7 @@
 let
   mkUserEnvironment = import ./mkUserEnvironment.nix;
 
-  pkgs = import <nixpkgs> {};
+  pkgs = import <nixpkgs> { };
 in
 {
   xxx = mkUserEnvironment {

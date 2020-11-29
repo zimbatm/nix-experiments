@@ -1,7 +1,7 @@
 let
   writeText = import ./writeText.nix;
   toNix = import ./toNix.nix;
-  pkgs = import <nixpkgs> {};
+  pkgs = import <nixpkgs> { };
 in
 {
   xxx = writeText {
