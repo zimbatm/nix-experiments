@@ -18,7 +18,7 @@
           (dir: { name = paths.basename dir; value = importFn dir; })
           absDirs;
     in
-      lists.toAttrs imports;
+    lists.toAttrs imports;
 
   # Loads a JSON file
   #

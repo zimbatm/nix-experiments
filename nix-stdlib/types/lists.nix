@@ -25,7 +25,7 @@ rec {
 
   optional = cond: x: if cond then x else empty;
 
-  empty = [];
+  empty = [ ];
 
   isEmpty = x: x == empty;
 
@@ -35,13 +35,13 @@ rec {
     let
       len = length list;
     in
-      genList
-        (n: elemAt list (n + start))
-        (
-          if start >= len then 0
-          else if start + count > len then len - start
-          else count
-        );
+    genList
+      (n: elemAt list (n + start))
+      (
+        if start >= len then 0
+        else if start + count > len then len - start
+        else count
+      );
 
   take = count: slice 0 count;
 

@@ -1,10 +1,10 @@
 let
   sources = import ./sources.nix;
   overlay = self: super: {
-    dev-env = super.callPackage ./dev-env.nix {};
+    dev-env = super.callPackage ./dev-env.nix { };
   };
   pkgs = import sources.nixpkgs {
-    config = {};
+    config = { };
     overlays = [ overlay ];
   };
 in

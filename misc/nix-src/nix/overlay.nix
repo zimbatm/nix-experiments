@@ -1,5 +1,5 @@
 self: super: {
-  nix-src = super.python3Packages.callPackage ./nix-src {};
+  nix-src = super.python3Packages.callPackage ./nix-src { };
 
   #####
 

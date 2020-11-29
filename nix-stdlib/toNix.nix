@@ -41,8 +41,8 @@ let
     let
       t = values.type value;
     in
-      table.${t} or (x: throw "type '${t}' not supported")
-        value
+    table.${t} or (x: throw "type '${t}' not supported")
+      value
   ;
 in
 toNix

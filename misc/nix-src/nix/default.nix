@@ -1,5 +1,5 @@
-{ pkgsPath ? import ./nixpkgs {} }:
+{ pkgsPath ? import ./nixpkgs { } }:
 pkgsPath {
-  config = {};
+  config = { };
   overlay = [ (import ./overlay.nix) ];
 }

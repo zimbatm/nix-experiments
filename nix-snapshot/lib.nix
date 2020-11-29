@@ -24,7 +24,7 @@ let
       env = builtins.getEnv "XDG_CACHE_HOME";
       dir = if env == "" then toString ~/.config else env;
     in
-      "${env}/nixpkgs-snapshot/${storePathHash storePath}";
+    "${env}/nixpkgs-snapshot/${storePathHash storePath}";
 
   # this is used by the cli to force the storePath to be written
   # to the /nix/store.
@@ -36,12 +36,12 @@ let
         inherit cacheDir storePath;
       };
     in
-      derivation {
-        inherit system;
-        name = "path-data.json";
-        builder = "/bin/sh";
-        args = [ "-c" "echo '${data}' > $out" ];
-      };
+    derivation {
+      inherit system;
+      name = "path-data.json";
+      builder = "/bin/sh";
+      args = [ "-c" "echo '${data}' > $out" ];
+    };
 
   # Load a nix folder that contains a default.nix. First check in the
   # nixpkgs-snapshot cache dir if it has been evaluated already. Otherwise
@@ -50,32 +50,33 @@ let
     let
       pathImport = import path;
     in
-      if builtins.pathExists cacheDir then
-        let
-          toFakeDrv = attr: type:
-            assert type == "symlink";
-            rec {
-              type = "derivation";
-              name = storePathName outPath;
-              # FIXME: drvPath
-              outPath = builtins.storePath "${toString cacheDir}/${attr}";
-            };
-          # FIXME: make the construct lazy?
-          # FIXME: build the recursive tree if the name contains a dot
-          data = builtins.readDir cacheDir;
-        in
-          builtins.mapAttrs toFakeDrv data
-      else if builtins.isAttrs pathImport then
-        # the ideal scenario
-        pathImport
-      else if builtins.isFunction pathImport then
-        # if it's a function, assume it's nixpkgs and make it pure.
-        pathImport {
-          config = {};
-          overlays = [];
+    if builtins.pathExists cacheDir then
+      let
+        toFakeDrv = attr: type:
+          assert type == "symlink";
+          rec {
+            type = "derivation";
+            name = storePathName outPath;
+            # FIXME: drvPath
+            outPath = builtins.storePath "${toString cacheDir}/${attr}";
+          };
+        # FIXME: make the construct lazy?
+        # FIXME: build the recursive tree if the name contains a dot
+        data = builtins.readDir cacheDir;
+      in
+      builtins.mapAttrs toFakeDrv data
+    else if builtins.isAttrs pathImport then
+    # the ideal scenario
+      pathImport
+    else if builtins.isFunction pathImport then
+    # if it's a function, assume it's nixpkgs and make it pure.
+      pathImport
+        {
+          config = { };
+          overlays = [ ];
         }
-      else
-        throw "${builtins.typeOf pathImport} is not supported";
+    else
+      throw "${builtins.typeOf pathImport} is not supported";
 in
 {
   inherit

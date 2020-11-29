@@ -6,7 +6,7 @@ let
         homepage = "https://github.com/${owner}/${repo}";
         url = "${homepage}/archive/${rev}.tar.gz";
       in
-        builtins.fetchTarball { inherit url sha256; };
+      builtins.fetchTarball { inherit url sha256; };
   };
 
   fetchSrc = import ../fetchSrc.nix { inherit fetchers; };

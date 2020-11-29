@@ -10,7 +10,7 @@
     let
       t = values.type val;
     in
-      if t != type then
-        throw "expected type to be ${type}, not ${t}"
-      else true;
+    if t != type then
+      throw "expected type to be ${type}, not ${t}"
+    else true;
 }

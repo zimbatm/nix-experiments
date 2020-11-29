@@ -1,6 +1,6 @@
 let
-  pkgs = import <nixpkgs> {};
-  mkUserEnvironment = pkgs.callPackage ./. {};
+  pkgs = import <nixpkgs> { };
+  mkUserEnvironment = pkgs.callPackage ./. { };
 in
 mkUserEnvironment {
   derivations = [

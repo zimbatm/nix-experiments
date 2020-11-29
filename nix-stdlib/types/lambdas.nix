@@ -12,7 +12,8 @@
   apply = f: a: f a;
 
   # (a -> a) -> a
-  fix = f: let x = f x; in x;
+  fix = f:
+    let x = f x; in x;
 
   # a -> a
   id = x: x;

@@ -8,7 +8,7 @@ let
     sources
     ;
 
-  bats-helpers = pkgs.runCommand "bats-helpers" {} ''
+  bats-helpers = pkgs.runCommand "bats-helpers" { } ''
     mkdir -p $out/bin
     cat <<'HELPERS' > $out/bin/bats-helpers
     #!${pkgs.stdenv.shell}

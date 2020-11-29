@@ -1,19 +1,19 @@
 let
-  pkgs = import <nixpkgs> {};
-  rehash = pkgs.callPackage ./. {};
+  pkgs = import <nixpkgs> { };
+  rehash = pkgs.callPackage ./. { };
   runCommand = pkgs.runCommand;
 
-  packageA = runCommand "package-a" {} ''
+  packageA = runCommand "package-a" { } ''
     echo CONTENT > $out
   '';
 
-  packageA' = runCommand "package-a" {} ''
+  packageA' = runCommand "package-a" { } ''
     # the build instructions have changed but the output is the same
     echo CONTENT > $out
   '';
 
   mkPackageB = { packageA }:
-    runCommand "package-b" {} ''
+    runCommand "package-b" { } ''
       # depends on package-a
       echo ${packageA} > $out
     '';

@@ -7,10 +7,11 @@ let
   nixFilter = name: type:
     name == srcPath + "/nix" || srcPath + "/default.nix";
 
-  src = lib.cleanSourceWith {
-    filter = nixFilter;
-    src = lib.cleanSource srcPath;
-  }
+  src = lib.cleanSourceWith
+    {
+      filter = nixFilter;
+      src = lib.cleanSource srcPath;
+    }
     in
     buildPythonApplication {
     inherit pname version src;

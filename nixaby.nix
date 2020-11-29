@@ -8,11 +8,11 @@ rec {
       elem = { _type = "tag"; type = type; };
     in
     # either an attribute set or a null.
-    # if null is passed, the 3rd argument here is ignored. Useful for <br/> or
-    # <hr/>.
+      # if null is passed, the 3rd argument here is ignored. Useful for <br/> or
+      # <hr/>.
     attrs:
-    if attrs == null then elem // { attrs = {}; body = []; } else
-    # either a string or list of (element or string)
+    if attrs == null then elem // { attrs = { }; body = [ ]; } else
+      # either a string or list of (element or string)
     body:
     elem // {
       attrs = attrs;
@@ -36,12 +36,12 @@ rec {
 
   example =
     html5 { lang = "en"; } [
-      (head {} [
-        (meta { lang = "utf-8"; } [])
-        (script { src = "https://xxx"; } [])
+      (head { } [
+        (meta { lang = "utf-8"; } [ ])
+        (script { src = "https://xxx"; } [ ])
       ])
-      (body {} [
-        (div {} [
+      (body { } [
+        (div { } [
           "Hey this is a text area"
           (hr null)
           "And another"

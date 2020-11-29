@@ -1,6 +1,7 @@
 { stdenv, runCommand }:
 { nixSrc, nixAttr, drv ? null, name ? nixAttr, binName ? nixAttr }:
-runCommand name {
+runCommand name
+{
   passthru = {
     inherit drv;
   };

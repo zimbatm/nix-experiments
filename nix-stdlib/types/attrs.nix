@@ -8,7 +8,7 @@ rec {
 
   optional = cond: x: if cond then x else empty;
 
-  empty = {};
+  empty = { };
 
   isEmpty = x: x == empty;
 

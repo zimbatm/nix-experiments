@@ -8,8 +8,8 @@ let
 
   data2 =
     if builtins.isFunction data then
-      # assume it's nixpkgs and make it pure
-      data { config = {}; overlays = []; }
+    # assume it's nixpkgs and make it pure
+      data { config = { }; overlays = [ ]; }
     else if builtins.isAttrs data then data
     else throw "importing '${builtins.typeOf data}' from ${toString path} is not supported";
 
@@ -17,8 +17,8 @@ let
   snapshot =
     let
       toNixDrv = name: drv:
-      # Discard context for drvPath, otherwise all the build dependencies
-      # come along.
+        # Discard context for drvPath, otherwise all the build dependencies
+        # come along.
         ''
           "${name}" = {
             name = "${drv.name}";
@@ -49,22 +49,22 @@ let
           builtins.mapAttrs toDrv drvs
       '';
     in
-      derivation {
-        inherit system;
-        name = "snapshot.nix";
-        builder = "/bin/sh";
-        args = [ "-ec" ". $buildScriptPath" ];
-        nixCode = nixCode;
-        buildScript = ''
-          # Pure POSIX-sh cat. Only works if there are non-NUL characters.
-          cat() {
-            while IFS= read -r line <&3; do
-              printf '%s\n' "$line"
-            done 3< "$1"
-          }
-          cat "$nixCodePath" > "$out"
-        '';
-        passAsFile = [ "nixCode" "buildScript" ];
-      };
+    derivation {
+      inherit system;
+      name = "snapshot.nix";
+      builder = "/bin/sh";
+      args = [ "-ec" ". $buildScriptPath" ];
+      nixCode = nixCode;
+      buildScript = ''
+        # Pure POSIX-sh cat. Only works if there are non-NUL characters.
+        cat() {
+          while IFS= read -r line <&3; do
+            printf '%s\n' "$line"
+          done 3< "$1"
+        }
+        cat "$nixCodePath" > "$out"
+      '';
+      passAsFile = [ "nixCode" "buildScript" ];
+    };
 in
 snapshot

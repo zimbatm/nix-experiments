@@ -7,8 +7,8 @@
 
 # mkProfile
 { name
-, paths ? {}
-, env ? {}
+, paths ? { }
+, env ? { }
 , profile ? ""
 , interactive ? ""
 }:
