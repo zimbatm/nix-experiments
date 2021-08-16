@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+out=$(nix-build "$(dirname "$0")" -A runVM --no-out-link)
+exec "$out" "$@"

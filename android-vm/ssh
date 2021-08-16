@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export TERM=xterm
+exec ssh root@127.0.0.1 -p 5555 "$@"
