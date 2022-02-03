@@ -67,7 +67,9 @@ rec {
       -drive "file=$userdata,format=qcow2"
       -enable-kvm
       -m ${config.memory}
-      -serial mon:stdio
+      # better serial, source: https://github.com/Mic92/vmsh/blob/87399d22ed0ce621ffa4e5bc21c62fc62381cbcf/justfile#L241
+      -nographic -serial null -device virtio-serial -chardev stdio,mux=on,id=char0,signal=off -mon chardev=char0,mode=readline -device virtconsole,chardev=char0,id=vmsh,nr=0
+      #-serial mon:stdio
       -smp ${toString config.cpus}
       -device "rtl8139,netdev=net0"
       -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:10022-:22"
