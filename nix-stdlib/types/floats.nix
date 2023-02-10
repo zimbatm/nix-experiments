@@ -1,4 +1,0 @@
-{ ... }:
-{
-  isType = builtins.isFloat;
-}
