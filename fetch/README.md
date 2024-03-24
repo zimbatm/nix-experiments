@@ -22,7 +22,8 @@ be great if they all behaved the same?
 * ideally, the user can select build-time or eval-time as an independent
   attribute.
 * all fetchers should look like derivations even if they are eval-time
-* use SRI hashes everywhere
+* support for mirrors
+* empty SRI hash should default to AAAAAA...
 
 Hopefully one day this will be available in nixpkgs.
 

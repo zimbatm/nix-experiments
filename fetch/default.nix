@@ -1,20 +1,22 @@
 { pkgs ? null }:
 with builtins;
 let
+  defaultHash = hash:
+    if hash == "" then "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" else hash;
+
   /*** fetch - the universal fetcher
 
     fetch is designed to take only pure data in and work with a variety of type
     of sources.
     */
   fetch =
-    { type ? "url"
+    { url
     , # Name of the file. If empty, use the basename of `url`.
       name ? ""
     , # a SRI-hash. Only sha256 hashes are supported for now.
-      hash
+      hash ? ""
     , meta ? { }
     , passthru ? { }
-    , ...
     }@attrs:
     let
       fetchFn =
@@ -22,7 +24,8 @@ let
           or (throw "fetcher ${type} not found");
       fetchAttrs = (removeAttrs attrs [ "type" ]) // {
         # include the default values
-        inherit hash passthru meta;
+        inherit passthru meta;
+        hash = defaultHash hash;
       };
     in
     fetchFn fetchAttrs;
@@ -61,35 +64,24 @@ let
 
   pkgsFetchers = with pkgs; { };
 
-  # extract the sha256 of a SRI-hash
-  getSHA256 = sriHash:
-    if (substring 0 7 sriHash) == "sha256-" then
-    # assuming 1000 > length of sriHash
-      substring 7 1000 sriHash
-    else
-      throw "expected sha256 SRI hash, got ${sriHash}";
-
   # a version of fetchurl that ressembles more <nix/fetchurl.nix>
   fetchurl = with builtins;
     { url
     , name ? baseNameOf url
-    , hash ? null
+    , hash ? ""
     , unpack ? false
     , ...
     }:
     (if unpack then fetchTarball else fetchurl)
-      (
-        { inherit name url; }
-        // (
-          if hash == null then { } else {
-            sha256 = getSHA256 hash;
-          }
-        )
-      );
+      {
+        inherit name url;
+        hash = defaultHash hash;
+      };
 
   # all fetchers can be converted to their outPath, just like derivations
   mkFetcher = attrs: outPath: attrs // {
     __toString = self: "${toString self.outPath}";
+    outputs = [ "out" ];
     outPath = outPath;
   };
 
