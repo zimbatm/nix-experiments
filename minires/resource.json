@@ -1,0 +1,34 @@
+{
+  "files": {
+    "/": {
+      "type": "mount"
+    },
+
+    "/bin": {
+      "type": "symlink",
+      "mode": "0755",
+      "to": "/nix/store/...-bin"
+    },
+
+    "/etc/passwd": {
+      "type": "file",
+      "mode": "0644",
+      "content": "root:x:0:0:System administrator:/root:/run/current-system/sw/bin/bash"
+    },
+
+    "/etc": { "type": "directory", "check": "exists" },
+    "/etc/systemd": { "type": "directory" },
+    "/etc/systemd/system": { "type": "directory" },
+
+    "/etc/systemd/system/bolt.service": {
+      "type": "file",
+      "content": "[Unit] ..."
+    }
+  },
+
+  "systemd-service": { },
+
+  "users": {
+
+  }
+}
