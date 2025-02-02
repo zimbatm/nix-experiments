@@ -25,7 +25,8 @@ new_path=${2:-$path}
 refs=(
   $(nix-store --query --references "$path")
 )
-deriver=$(nix-store --query --deriver "$path")
+# deriver=$(nix-store --query --deriver "$path")
+deriver=""
 
 nix_number 1
 nix-store --dump "$new_path"
