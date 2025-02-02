@@ -97,7 +97,9 @@ fi
 # FIXME: re-hydrate the references
 #nix-store --query --references "$store_path" | mapfile -t references
 
-nix-store --add "$work_dir/$drv_name"
+"$(dirname "$0")"/nixe.sh "$store_path" "$work_dir/$drv_name" | nix-store --import
+
+# nix-store --add "$work_dir/$drv_name"
 
 # TODO: recursively rewrite the system closure
 

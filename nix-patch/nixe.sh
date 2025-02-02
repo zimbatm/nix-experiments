@@ -20,14 +20,15 @@ nix_string() {
     done
 }
 
-path=/nix/store/ykfgyfbfbxixrx03m6mzwnbklngg5wk6-depot-3p-sources.txt
+path=$1
+new_path=${2:-$path}
 refs=(
   $(nix-store --query --references "$path")
 )
 deriver=$(nix-store --query --deriver "$path")
 
 nix_number 1
-nix-store --dump $path
+nix-store --dump "$new_path"
 nix_number $((0x4558494e))
 nix_string "$path"
 nix_number ${#refs[@]}
