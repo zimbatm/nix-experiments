@@ -19,6 +19,10 @@ in_nix_store() {
   echo "$1" | grep "^/nix/store/" &>/dev/null
 }
 
+log() {
+  echo "$*" >&2
+}
+
 fail() {
   echo "error: $*"
   exit 1
@@ -45,16 +49,17 @@ USAGE
 }
 
 nix_number() {
-  n=$1
+  local b n=$1
   for _ in $(seq 8); do
     b=$(printf "%02x" $(( n % 256 )))
     n=$(( n / 256 ))
+    # shellcheck disable=SC2059
     printf "\x$b"
   done
 }
 
 nix_string() {
-  str="$1"
+  local str="$1"
   nix_number ${#str}
   printf '%s' "$str"
   for _ in $(seq 1 $(( 8 - ( ( (${#str} - 1) % 8 ) + 1 ) ))); do
@@ -83,8 +88,6 @@ nixe() {
     refs+=("${rewrites[$ref]:-$ref}")
   done
 
-  echo "refs: ${refs[*]}" >&2
-
   for ref in "${!rewrites[@]}"; do
     sed_args+=(
       -e
@@ -97,8 +100,6 @@ nixe() {
   else
     sed_args=(sed "${sed_args[@]}")
   fi
-
-  echo "sed args: ${sed_args[*]}" >&2
 
   {
     # Number of NAR files to add
@@ -179,16 +180,16 @@ fi
 
 # Compare the work dir with the old one
 if diff --recursive "$store_path" "$work_dir"; then
-  echo "ignoring as no changes were detected"
+  log "ignoring as no changes were detected"
   exit
 fi
 
 # Insert the work dir back into the store
 new_path=$(nixe "$store_path" "$work_dir/$drv_name" | nix-store --import)
 
-echo "new_path=$new_path"
+log "new_path=$new_path"
 
-# TODO: recursively rewrite the system closure
+# TODO: Recursively rewrite the system closure
 
 
 # TODO: nixos-rebuild test
