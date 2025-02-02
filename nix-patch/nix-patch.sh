@@ -1,5 +1,19 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2155
 set -euo pipefail
+
+shopt -u nullglob
+
+## Globals
+
+declare -A rewrites
+EDITOR=${EDITOR:-vim}
+
+## Functions
+
+nix_store_hash() {
+  echo "$1" | cut -d'/' -f4 | cut -d'-' -f 1
+}
 
 in_nix_store() {
   echo "$1" | grep "^/nix/store/" &>/dev/null
@@ -25,12 +39,85 @@ Opens the path in a mutable buffer in your editor. When editing is finished,
 add the new content to the store, and rewrite your system closure recursively
 with it.
 
+Set \$EDITOR to change the editor.
+
 USAGE
+}
+
+nix_number() {
+  n=$1
+  for _ in $(seq 8); do
+    b=$(printf "%02x" $(( n % 256 )))
+    n=$(( n / 256 ))
+    printf "\x$b"
+  done
+}
+
+nix_string() {
+  str="$1"
+  nix_number ${#str}
+  printf '%s' "$str"
+  for _ in $(seq 1 $(( 8 - ( ( (${#str} - 1) % 8 ) + 1 ) ))); do
+    printf '\0'
+  done
+}
+
+nixe() {
+  local old_path=$1
+  local path_to_add=${2:-1}
+  local -a refs
+  local -a sed_args
+  # We're generating a random ID as the derivation "hash"
+  local new_hash=$(nix hash convert --hash-algo sha1 --to nix32 "$(head -c20 /dev/urandom | xxd -p)")
+  local drv_name=$(echo "$path" | cut -d'/' -f4 | cut -d'-' -f 2-)
+  local new_path=/nix/store/${new_hash}-${drv_name}
+  # The deriver doesn't make sense for us
+  # local deriver=$(nix-store --query --deriver "$path")
+  local deriver=""
+
+  # Record the new path reference
+  rewrites[$old_path]=$new_path
+
+  # TODO: replace refs with mapping
+  for ref in $(nix-store --query --references "${old_path}"); do
+    refs+=("${rewrites[$ref]:-$ref}")
+  done
+
+  echo "refs: ${refs[*]}" >&2
+
+  for ref in "${!rewrites[@]}"; do
+    sed_args+=(
+      -e
+      "s|$(nix_store_hash "$ref")|$(nix_store_hash "${rewrites[$ref]}")|g"
+    )
+  done
+
+  if [[ ${#sed_args} -eq 0 ]]; then
+    sed_args=(cat)
+  else
+    sed_args=(sed "${sed_args[@]}")
+  fi
+
+  echo "sed args: ${sed_args[*]}" >&2
+
+  {
+    # Number of NAR files to add
+    nix_number 1
+    nix-store --dump "$path_to_add"
+    nix_number $((0x4558494e))
+    nix_string "$new_path"
+    nix_number ${#refs[@]}
+    for ref in "${refs[@]}"; do
+        nix_string "$ref"
+    done
+    nix_string "$deriver"
+    nix_number 0
+    nix_number 0
+  } | "${sed_args[@]}"
 }
 
 # -----------------
 
-EDITOR=${EDITOR:-vim}
 system_closure=$(readlink /run/current-system)
 path=
 work_dir=
@@ -48,6 +135,9 @@ while [[ $# -gt 0 ]]; do
       fail "unknown option $opt, --help for usage."
       ;;
     *)
+      if [[ -n $path ]]; then
+        fail "you can pass only one path"
+      fi
       path=$opt
   esac
 done
@@ -94,12 +184,9 @@ if diff --recursive "$store_path" "$work_dir"; then
 fi
 
 # Insert the work dir back into the store
-# FIXME: re-hydrate the references
-#nix-store --query --references "$store_path" | mapfile -t references
+new_path=$(nixe "$store_path" "$work_dir/$drv_name" | nix-store --import)
 
-"$(dirname "$0")"/nixe.sh "$store_path" "$work_dir/$drv_name" | nix-store --import
-
-# nix-store --add "$work_dir/$drv_name"
+echo "new_path=$new_path"
 
 # TODO: recursively rewrite the system closure
 
