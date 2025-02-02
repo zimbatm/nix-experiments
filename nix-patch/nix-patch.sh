@@ -83,7 +83,7 @@ nixe() {
   # Record the new path reference
   rewrites[$old_path]=$new_path
 
-  # TODO: replace refs with mapping
+  # Replace refs with mapping
   for ref in $(nix-store --query --references "${old_path}"); do
     refs+=("${rewrites[$ref]:-$ref}")
   done
@@ -109,7 +109,7 @@ nixe() {
     nix_string "$new_path"
     nix_number ${#refs[@]}
     for ref in "${refs[@]}"; do
-        nix_string "$ref"
+      nix_string "$ref"
     done
     nix_string "$deriver"
     nix_number 0
