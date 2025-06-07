@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2155
+# shellcheck disable=SC2155,SC2207,SC2317
 set -euo pipefail
 
 shopt -u nullglob
@@ -70,8 +70,8 @@ nix_string() {
 nixe() {
   local old_path=$1
   local path_to_add=${2:-1}
-  local -a refs
-  local -a sed_args
+  local refs=()
+  local sed_args=()
   # We're generating a random ID as the derivation "hash"
   local new_hash=$(nix hash convert --hash-algo sha1 --to nix32 "$(head -c20 /dev/urandom | xxd -p)")
   local drv_name=$(echo "$path" | cut -d'/' -f4 | cut -d'-' -f 2-)
@@ -107,7 +107,7 @@ nixe() {
     nix-store --dump "$path_to_add"
     nix_number $((0x4558494e))
     nix_string "$new_path"
-    nix_number ${#refs[@]}
+    nix_number "${#refs[@]}"
     for ref in "${refs[@]}"; do
       nix_string "$ref"
     done
@@ -116,6 +116,67 @@ nixe() {
     nix_number 0
   } | "${sed_args[@]}"
 }
+
+declare -A parents  # Stores child -> parent relationships
+
+# First pass: Build dependency graph from Root
+build_dependency_graph() {
+  local root="$1"
+  local path
+  declare -A visited
+  queue=("$root")
+
+  while [[ ${#queue[@]} -gt 0 ]]; do
+    path="${queue[0]}"
+    log "path=$path"
+    queue=("${queue[@]:1}")  # Dequeue
+
+    # Skip if already visited
+    if [[ -n "${visited[$path]:-}" ]]; then
+      continue
+    fi
+    visited["$path"]=1
+
+    # Get references (dependencies)
+    for ref in $(nix-store --query --references "$path"); do
+      parents["$ref"]="$path"  # Child -> Parent mapping
+      queue+=("$ref")  # Enqueue references
+    done
+  done
+}
+
+# Second pass: Find the path from B to Root
+find_path_to_root() {
+  local target="$1"
+  path_chain=()
+
+  while [[ -n "$target" ]]; do
+    path_chain+=("$target")
+    target="${parents[$target]}"  # Move to parent
+  done
+
+  log "Path from Root to B found:"
+  printf '%s\n' "${path_chain[@]}" | tac  # Print in correct order
+}
+
+# Third pass: Rewrite paths from Root to B
+rewrite_paths() {
+  local -a chain=("$@")
+  declare -A rewritten_paths
+
+  for path in "${chain[@]}"; do
+    if [[ -n "${rewritten_paths[$path]}" ]]; then
+      continue
+    fi
+
+    # Rewrite path (modify as needed)
+    new_path=$(nixe "$store_path" "$work_dir/$drv_name" | nix-store --import)
+    rewritten_paths["$path"]="$new_path"
+
+    log "Rewritten: $path -> $new_path"
+  done
+}
+
 
 # -----------------
 
@@ -179,18 +240,30 @@ fi
 "$EDITOR" "$edit_path"
 
 # Compare the work dir with the old one
-if diff --recursive "$store_path" "$work_dir"; then
+if diff --recursive "$store_path" "$work_dir/$drv_name"; then
   log "ignoring as no changes were detected"
   exit
 fi
 
 # Insert the work dir back into the store
-new_path=$(nixe "$store_path" "$work_dir/$drv_name" | nix-store --import)
-
-log "new_path=$new_path"
+# new_path=$(nixe "$store_path" "$work_dir/$drv_name" | nix-store --import)
+# log "new_path=$new_path"
 
 # TODO: Recursively rewrite the system closure
+# First pass: Build dependency graph from Root
+build_dependency_graph "$system_closure"
 
+path_chain=($(find_path_to_root "$store_path"))
+
+log "store_path=$store_path"
+log "path_chain=${path_chain[*]}"
+
+exit 1
+# rewrite_paths "${path_chain[@]}"
+
+# new_system_closure=${rewrites[$system_closure]}
+
+# log "new_system_closure=$new_system_closure"
 
 # TODO: nixos-rebuild test
 
