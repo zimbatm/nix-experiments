@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- deployment.yaml
+
+configMapGenerator:
+- name: nix-config
+  files:
+  - authorized_keys
+  - group
+  - init.sh
+  - nix-daemon-startup.sh
+  - nix.conf
+  - passwd
+  - user-startup.sh
+
+generatorOptions:
+  disableNameSuffixHash: true

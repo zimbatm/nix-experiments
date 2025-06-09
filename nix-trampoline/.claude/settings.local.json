@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./nix-trampoline.sh:*)",
+      "Bash(./test.sh)",
+      "Bash(find:*)",
+      "Bash(git add:*)",
+      "Bash(kubectl apply:*)",
+      "Bash(kubectl delete:*)",
+      "Bash(kubectl describe:*)",
+      "Bash(kubectl exec:*)",
+      "Bash(kubectl get pod:*)",
+      "Bash(kubectl logs:*)",
+      "Bash(kubectl logs:*)",
+      "Bash(kubectl run:*)",
+      "Bash(kubectl wait:*)",
+      "Bash(nc:*)",
+      "Bash(nix develop:*)",
+      "Bash(shellcheck:*)",
+      "Bash(timeout:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": []
+  }
+}

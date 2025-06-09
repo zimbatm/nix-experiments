@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nix-store-pvc
+  labels:
+    app: nix-trampoline
+    component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nix-workspace
+  labels:
+    app: nix-trampoline
+    component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nix-trampoline
+  labels:
+    app: nix-trampoline
+    component: compute
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Required for PVC
+  selector:
+    matchLabels:
+      app: nix-trampoline
+      component: compute
+  template:
+    metadata:
+      labels:
+        app: nix-trampoline
+        component: compute
+    spec:
+      volumes:
+      - name: nix-store
+        persistentVolumeClaim:
+          claimName: nix-store-pvc
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: nix-workspace
+      - name: nix-config
+        configMap:
+          name: nix-config
+          defaultMode: 0755
+      
+      initContainers:
+      - name: nix-store-init
+        image: nixos/nix:latest
+        command:
+        - /entrypoint.sh
+        volumeMounts:
+        - name: nix-store
+          mountPath: /nix-shared
+        - name: nix-config
+          mountPath: /entrypoint.sh
+          subPath: init.sh
+          readOnly: true
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+      
+      containers:
+      - name: nix-daemon
+        image: nixos/nix:latest
+        command:
+        - /entrypoint.sh
+        securityContext:
+          privileged: true
+        readinessProbe:
+          exec:
+            command:
+            - /nix/var/nix/profiles/default/bin/nix
+            - store
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 3
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+        volumeMounts:
+        - name: nix-store
+          mountPath: /nix
+        - name: nix-config
+          mountPath: /entrypoint.sh
+          subPath: nix-daemon-startup.sh
+          readOnly: true
+        - name: nix-config
+          mountPath: /etc/nix/nix.conf
+          subPath: nix.conf
+          readOnly: true
+        
+      - name: user
+        image: nixos/nix:latest
+        ports:
+        - containerPort: 2222
+          name: ssh
+        command:
+        - /entrypoint.sh
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+        readinessProbe:
+          tcpSocket:
+            port: 2222
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1"
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+        volumeMounts:
+        - name: nix-store
+          mountPath: /nix
+          readOnly: true
+        - name: workspace
+          mountPath: /workspace
+        - name: nix-config
+          mountPath: /entrypoint.sh
+          subPath: user-startup.sh
+          readOnly: true
+        - name: nix-config
+          mountPath: /etc/nix/nix.conf
+          subPath: nix.conf
+          readOnly: true
+        - name: nix-config
+          mountPath: /etc/ssh/authorized_keys
+          subPath: authorized_keys
+          readOnly: true
+        - name: nix-config
+          mountPath: /etc/passwd
+          subPath: passwd
+          readOnly: true
+        - name: nix-config
+          mountPath: /etc/group
+          subPath: group
+          readOnly: true
+        workingDir: /workspace/home
+      
+      restartPolicy: Always
