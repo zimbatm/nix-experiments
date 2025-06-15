@@ -52,7 +52,7 @@ nix-sandbox clean
 
 1. **Environment Detection**: Looks for `flake.nix` or `devenv.nix` in the project
 2. **Sandboxing**: Uses OS-native sandboxing (bubblewrap on Linux, sandbox-exec on macOS)
-3. **Filesystem Isolation**: 
+3. **Filesystem Isolation**:
    - Full access to project directory
    - Read-only access to `/nix/store`
    - Access to Nix daemon socket for builds
@@ -62,6 +62,7 @@ nix-sandbox clean
 ## Security Model
 
 The sandbox denies all host access by default, only allowing:
+
 - Project directory (read/write)
 - Nix store (read-only)
 - Nix daemon socket (for builds)
@@ -82,7 +83,7 @@ cargo test --test integration_sandbox --test integration_git --test integration_
 
 # Run specific integration test suites
 cargo test --test integration_sandbox    # Sandbox creation & functionality (5 tests)
-cargo test --test integration_git        # Git worktree operations (7 tests)  
+cargo test --test integration_git        # Git worktree operations (7 tests)
 cargo test --test integration_isolation  # Platform-specific isolation (7 tests)
 
 # Run NixOS integration tests (VM-based testing)
@@ -100,7 +101,9 @@ cargo clippy
 The project includes multiple test layers:
 
 **Rust Integration Tests** (19 tests):
+
 - **Sandbox Creation** (`tests/integration_sandbox.rs`):
+
   - Basic functionality (list, clean commands)
   - Environment detection (flake.nix, devenv.nix)
   - Cache key generation and invalidation
@@ -108,6 +111,7 @@ The project includes multiple test layers:
   - Linux-specific isolation with bubblewrap
 
 - **Git Operations** (`tests/integration_git.rs`):
+
   - Multi-branch repository setup and switching
   - Branch-specific environment isolation
   - Named session support with worktrees
@@ -122,6 +126,7 @@ The project includes multiple test layers:
   - Concurrent sandbox operations
 
 **NixOS Integration Tests** (`checks/`):
+
 - **Basic Integration** (`integration-test.nix`): Tests binary functionality with real Nix environment
 - **VM Testing** (`vm-test.nix`): Full system testing in isolated NixOS VM with bubblewrap
 

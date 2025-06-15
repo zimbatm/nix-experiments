@@ -1,29 +1,34 @@
 use anyhow::Result;
 use std::collections::HashMap;
-use std::process::Command;
-use std::os::unix::process::CommandExt;
-use tempfile::NamedTempFile;
 use std::io::Write;
+use std::os::unix::process::CommandExt;
+use std::process::Command;
+use tempfile::NamedTempFile;
 use tracing::info;
 
 use crate::constants::{binaries, devices, env_vars, filesystem, macos_sandbox, paths, sandbox};
 use crate::environment::Environment;
 use crate::session::Session;
 
-pub async fn enter_sandbox(session: &Session, environment: &Environment, environment_vars: &HashMap<String, String>) -> Result<()> {
+pub async fn enter_sandbox(
+    session: &Session,
+    environment: &Environment,
+    environment_vars: &HashMap<String, String>,
+) -> Result<()> {
     let project_dir = session.project_dir();
     let shell_command = environment.shell_command();
-    let shell_args: Vec<&str> = shell_command.split_whitespace().collect();
-    
+    let _shell_args: Vec<&str> = shell_command.split_whitespace().collect();
+
     info!("Creating macOS sandbox profile");
-    
+
     // Create sandbox profile
     let mut profile_file = NamedTempFile::new()?;
     // Get user's home directory for Nix config path
     let home_dir = std::env::var(env_vars::HOME).unwrap_or_else(|_| "/tmp".to_string());
     let user_nix_config = std::path::Path::new(&home_dir).join(paths::NIX_USER_CONFIG_REL);
-    
-    let profile_content = format!(r#"
+
+    let profile_content = format!(
+        r#"
 (version 1)
 (deny default)
 
@@ -77,28 +82,36 @@ pub async fn enter_sandbox(session: &Session, environment: &Environment, environ
 
 ; Allow IPC
 (allow ipc-posix*)
-"#, 
-        devices::NULL, devices::RANDOM, devices::URANDOM,
+"#,
+        devices::NULL,
+        devices::RANDOM,
+        devices::URANDOM,
         filesystem::NIX_STORE_DIR,
         paths::NIX_DAEMON_SOCKET,
         paths::NIX_SYSTEM_CONFIG,
         user_nix_config.to_string_lossy(),
         project_dir.to_string_lossy()
     );
-    
+
     profile_file.write_all(profile_content.as_bytes())?;
     profile_file.flush()?;
-    
+
     // Build sandbox-exec command
     let mut cmd = Command::new(binaries::SANDBOX_EXEC);
-    cmd.args([macos_sandbox::PROFILE_FLAG, profile_file.path().to_str().unwrap()]);
+    cmd.args([
+        macos_sandbox::PROFILE_FLAG,
+        profile_file.path().to_str().unwrap(),
+    ]);
     cmd.current_dir(project_dir);
-    
+
     // Add environment variables
     cmd.env(env_vars::HOME, project_dir);
     cmd.env(env_vars::USER, sandbox::USER);
-    cmd.env(env_vars::TERM, std::env::var(env_vars::TERM).unwrap_or_else(|_| sandbox::DEFAULT_TERM.to_string()));
-    
+    cmd.env(
+        env_vars::TERM,
+        std::env::var(env_vars::TERM).unwrap_or_else(|_| sandbox::DEFAULT_TERM.to_string()),
+    );
+
     // Add cached environment variables
     for (key, value) in environment_vars {
         // Skip certain variables that should be handled by the sandbox
@@ -106,10 +119,10 @@ pub async fn enter_sandbox(session: &Session, environment: &Environment, environ
             cmd.env(key, value);
         }
     }
-    
+
     // Add shell command (use bash to ensure proper environment)
     cmd.args(["/bin/bash", "-c", &shell_command]);
-    
+
     // Replace the current process
     Err(cmd.exec().into())
 }

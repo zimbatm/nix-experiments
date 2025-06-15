@@ -6,7 +6,7 @@ use crate::error::SandboxError;
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub state_dir: PathBuf,
+    pub _state_dir: PathBuf,
     pub sessions_dir: PathBuf,
     pub cache_dir: PathBuf,
 }
@@ -17,20 +17,22 @@ impl Config {
             PathBuf::from(dir).join(app_dirs::APP_NAME)
         } else {
             dirs::home_dir()
-                .ok_or_else(|| SandboxError::ConfigError("Could not determine home directory".into()))?
+                .ok_or_else(|| {
+                    SandboxError::ConfigError("Could not determine home directory".into())
+                })?
                 .join(app_dirs::LOCAL_STATE_PATH)
                 .join(app_dirs::APP_NAME)
         };
-        
+
         let sessions_dir = state_dir.join(app_dirs::SESSIONS);
         let cache_dir = state_dir.join(app_dirs::CACHE);
-        
+
         // Create directories if they don't exist
         std::fs::create_dir_all(&sessions_dir)?;
         std::fs::create_dir_all(&cache_dir)?;
-        
+
         Ok(Config {
-            state_dir,
+            _state_dir: state_dir,
             sessions_dir,
             cache_dir,
         })

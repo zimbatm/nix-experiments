@@ -1,8 +1,8 @@
+use serial_test::serial;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 use tempdir::TempDir;
-use serial_test::serial;
 
 fn setup_git_repo_with_branches(dir: &Path) -> anyhow::Result<()> {
     // Initialize git repo
@@ -16,7 +16,7 @@ fn setup_git_repo_with_branches(dir: &Path) -> anyhow::Result<()> {
         .args(["config", "user.name", "Test User"])
         .current_dir(dir)
         .status()?;
-    
+
     Command::new("git")
         .args(["config", "user.email", "test@example.com"])
         .current_dir(dir)
@@ -46,14 +46,17 @@ fn setup_git_repo_with_branches(dir: &Path) -> anyhow::Result<()> {
 }
 "#;
     fs::write(dir.join("flake.nix"), flake_content)?;
-    fs::write(dir.join("README.md"), "# Test Project\n\nMain branch version\n")?;
+    fs::write(
+        dir.join("README.md"),
+        "# Test Project\n\nMain branch version\n",
+    )?;
 
     // Initial commit on main
     Command::new("git")
         .args(["add", "."])
         .current_dir(dir)
         .status()?;
-    
+
     Command::new("git")
         .args(["commit", "-m", "Initial commit on main"])
         .current_dir(dir)
@@ -68,14 +71,20 @@ fn setup_git_repo_with_branches(dir: &Path) -> anyhow::Result<()> {
     // Modify files on feature branch
     let feature_flake = flake_content.replace("hello", "hello cowsay");
     fs::write(dir.join("flake.nix"), feature_flake)?;
-    fs::write(dir.join("README.md"), "# Test Project\n\nFeature branch version\n")?;
-    fs::write(dir.join("feature.txt"), "This file only exists on feature branch\n")?;
+    fs::write(
+        dir.join("README.md"),
+        "# Test Project\n\nFeature branch version\n",
+    )?;
+    fs::write(
+        dir.join("feature.txt"),
+        "This file only exists on feature branch\n",
+    )?;
 
     Command::new("git")
         .args(["add", "."])
         .current_dir(dir)
         .status()?;
-    
+
     Command::new("git")
         .args(["commit", "-m", "Add feature changes"])
         .current_dir(dir)
@@ -93,7 +102,7 @@ fn setup_git_repo_with_branches(dir: &Path) -> anyhow::Result<()> {
         .args(["add", "."])
         .current_dir(dir)
         .status()?;
-    
+
     Command::new("git")
         .args(["commit", "-m", "Add hotfix"])
         .current_dir(dir)
@@ -110,30 +119,27 @@ fn setup_git_repo_with_branches(dir: &Path) -> anyhow::Result<()> {
 
 fn get_nix_sandbox_binary() -> String {
     use std::env;
-    
+
     // Try different paths to find the binary
     let current_dir = env::current_dir().expect("Failed to get current directory");
     let release_path = current_dir.join("target/release/nix-sandbox");
     let debug_path = current_dir.join("target/debug/nix-sandbox");
-    
+
     if release_path.exists() {
         return release_path.to_string_lossy().to_string();
     }
-    
+
     if debug_path.exists() {
         return debug_path.to_string_lossy().to_string();
     }
-    
+
     // Try to build it
-    if let Ok(output) = Command::new("cargo")
-        .args(["build", "--release"])
-        .output()
-    {
+    if let Ok(output) = Command::new("cargo").args(["build", "--release"]).output() {
         if output.status.success() && release_path.exists() {
             return release_path.to_string_lossy().to_string();
         }
     }
-    
+
     // Fallback to PATH
     "nix-sandbox".to_string()
 }
@@ -143,17 +149,21 @@ fn get_nix_sandbox_binary() -> String {
 fn test_git_worktree_session_creation() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("nix-sandbox-git-test")?;
     setup_git_repo_with_branches(temp_dir.path())?;
-    
+
     let binary = get_nix_sandbox_binary();
-    
+
     // Test creating session for main branch
     let output = Command::new(&binary)
         .args(["list"])
         .current_dir(temp_dir.path())
         .output()?;
-    
-    assert!(output.status.success(), "Failed to list sessions on main: {}", String::from_utf8_lossy(&output.stderr));
-    
+
+    assert!(
+        output.status.success(),
+        "Failed to list sessions on main: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     // Test creating session for feature branch
     Command::new("git")
         .args(["checkout", "feature/test-branch"])
@@ -164,9 +174,13 @@ fn test_git_worktree_session_creation() -> anyhow::Result<()> {
         .args(["list"])
         .current_dir(temp_dir.path())
         .output()?;
-    
-    assert!(output.status.success(), "Failed to list sessions on feature branch: {}", String::from_utf8_lossy(&output.stderr));
-    
+
+    assert!(
+        output.status.success(),
+        "Failed to list sessions on feature branch: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     // Test creating session for hotfix branch
     Command::new("git")
         .args(["checkout", "hotfix/urgent-fix"])
@@ -177,9 +191,13 @@ fn test_git_worktree_session_creation() -> anyhow::Result<()> {
         .args(["list"])
         .current_dir(temp_dir.path())
         .output()?;
-    
-    assert!(output.status.success(), "Failed to list sessions on hotfix branch: {}", String::from_utf8_lossy(&output.stderr));
-    
+
+    assert!(
+        output.status.success(),
+        "Failed to list sessions on hotfix branch: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     Ok(())
 }
 
@@ -188,9 +206,9 @@ fn test_git_worktree_session_creation() -> anyhow::Result<()> {
 fn test_branch_specific_environments() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("nix-sandbox-branch-env-test")?;
     setup_git_repo_with_branches(temp_dir.path())?;
-    
+
     let binary = get_nix_sandbox_binary();
-    
+
     // Start on main branch
     Command::new("git")
         .args(["checkout", "main"])
@@ -249,9 +267,9 @@ fn test_branch_specific_environments() -> anyhow::Result<()> {
 fn test_session_isolation_between_branches() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("nix-sandbox-session-isolation-test")?;
     setup_git_repo_with_branches(temp_dir.path())?;
-    
+
     let binary = get_nix_sandbox_binary();
-    
+
     // Create sessions on different branches
     Command::new("git")
         .args(["checkout", "main"])
@@ -277,7 +295,7 @@ fn test_session_isolation_between_branches() -> anyhow::Result<()> {
 
     // The outputs should potentially be different if sessions are branch-aware
     // This is more of a behavioral test that ensures the tool works across branches
-    
+
     Ok(())
 }
 
@@ -286,25 +304,27 @@ fn test_session_isolation_between_branches() -> anyhow::Result<()> {
 fn test_worktree_with_named_session() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("nix-sandbox-named-session-test")?;
     setup_git_repo_with_branches(temp_dir.path())?;
-    
+
     let binary = get_nix_sandbox_binary();
-    
+
     // Test with session names that might create worktrees
     let session_names = ["dev-session", "test-env", "feature-work"];
-    
+
     for session_name in &session_names {
         let output = Command::new(&binary)
             .args(["list"])
             .env("NIX_SANDBOX_SESSION", session_name)
             .current_dir(temp_dir.path())
             .output()?;
-        
-        assert!(output.status.success(), 
-                "Failed to create session '{}': {}", 
-                session_name, 
-                String::from_utf8_lossy(&output.stderr));
+
+        assert!(
+            output.status.success(),
+            "Failed to create session '{}': {}",
+            session_name,
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
-    
+
     Ok(())
 }
 
@@ -313,9 +333,9 @@ fn test_worktree_with_named_session() -> anyhow::Result<()> {
 fn test_git_worktree_cleanup() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("nix-sandbox-cleanup-test")?;
     setup_git_repo_with_branches(temp_dir.path())?;
-    
+
     let binary = get_nix_sandbox_binary();
-    
+
     // Create some sessions
     let output = Command::new(&binary)
         .args(["list"])
@@ -328,9 +348,13 @@ fn test_git_worktree_cleanup() -> anyhow::Result<()> {
         .args(["clean"])
         .current_dir(temp_dir.path())
         .output()?;
-    
-    assert!(output.status.success(), "Clean command failed: {}", String::from_utf8_lossy(&output.stderr));
-    
+
+    assert!(
+        output.status.success(),
+        "Clean command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     Ok(())
 }
 
@@ -339,7 +363,7 @@ fn test_git_worktree_cleanup() -> anyhow::Result<()> {
 fn test_git_repo_edge_cases() -> anyhow::Result<()> {
     // Test in a directory that's not a git repo
     let temp_dir = TempDir::new("nix-sandbox-no-git-test")?;
-    
+
     // Create flake.nix without git
     let flake_content = r#"
 {
@@ -359,17 +383,21 @@ fn test_git_repo_edge_cases() -> anyhow::Result<()> {
 }
 "#;
     fs::write(temp_dir.path().join("flake.nix"), flake_content)?;
-    
+
     let binary = get_nix_sandbox_binary();
-    
+
     // Should still work without git
     let output = Command::new(&binary)
         .args(["list"])
         .current_dir(temp_dir.path())
         .output()?;
-    
-    assert!(output.status.success(), "Should work without git repo: {}", String::from_utf8_lossy(&output.stderr));
-    
+
+    assert!(
+        output.status.success(),
+        "Should work without git repo: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     Ok(())
 }
 
@@ -378,7 +406,7 @@ fn test_git_repo_edge_cases() -> anyhow::Result<()> {
 fn test_detached_head_state() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("nix-sandbox-detached-head-test")?;
     setup_git_repo_with_branches(temp_dir.path())?;
-    
+
     // Get the commit hash of main
     let output = Command::new("git")
         .args(["rev-parse", "HEAD"])
@@ -386,22 +414,26 @@ fn test_detached_head_state() -> anyhow::Result<()> {
         .output()?;
     assert!(output.status.success());
     let commit_hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    
+
     // Checkout detached HEAD
     Command::new("git")
         .args(["checkout", &commit_hash])
         .current_dir(temp_dir.path())
         .status()?;
-    
+
     let binary = get_nix_sandbox_binary();
-    
+
     // Should handle detached HEAD gracefully
     let output = Command::new(&binary)
         .args(["list"])
         .current_dir(temp_dir.path())
         .output()?;
-    
-    assert!(output.status.success(), "Should handle detached HEAD: {}", String::from_utf8_lossy(&output.stderr));
-    
+
+    assert!(
+        output.status.success(),
+        "Should handle detached HEAD: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     Ok(())
 }

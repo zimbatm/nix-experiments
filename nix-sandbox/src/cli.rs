@@ -24,7 +24,7 @@ pub enum Commands {
 pub async fn handle_enter(session_name: Option<String>) -> Result<()> {
     let config = Config::load()?;
     let current_dir = std::env::current_dir()?;
-    
+
     // Initialize session
     let session_mgr = SessionManager::new(&config)?;
     let session = if let Some(name) = session_name {
@@ -32,45 +32,49 @@ pub async fn handle_enter(session_name: Option<String>) -> Result<()> {
     } else {
         Session::new_in_place(&current_dir)?
     };
-    
+
     info!("Entering sandbox for: {}", session.project_dir().display());
-    
+
     // Detect environment
     let env = Environment::detect(session.project_dir())?;
     info!("Detected environment type: {:?}", env.env_type());
-    
+
     // Create and enter sandbox
     let sandbox = Sandbox::new(&config, &session, &env)?;
     sandbox.enter().await?;
-    
+
     Ok(())
 }
 
 pub async fn handle_list() -> Result<()> {
     let config = Config::load()?;
     let session_mgr = SessionManager::new(&config)?;
-    
+
     let sessions = session_mgr.list_sessions()?;
-    
+
     if sessions.is_empty() {
         info!("No active sessions");
     } else {
         info!("Active sessions:");
         for session in sessions {
-            println!("  - {} (branch: {})", session.name(), session.git_branch().unwrap_or("none"));
+            println!(
+                "  - {} (branch: {})",
+                session.name(),
+                session.git_branch().unwrap_or("none")
+            );
         }
     }
-    
+
     Ok(())
 }
 
 pub async fn handle_clean() -> Result<()> {
     let config = Config::load()?;
     let cache = EnvironmentCache::new(config);
-    
+
     info!("Cleaning stale caches (older than 7 days)...");
     cache.cleanup_stale_caches(7)?;
     info!("Cache cleanup completed");
-    
+
     Ok(())
 }

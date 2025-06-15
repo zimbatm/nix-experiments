@@ -1,7 +1,7 @@
 { pkgs }:
 
 let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 in
 
 pkgs.rustPlatform.buildRustPackage {

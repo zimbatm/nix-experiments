@@ -14,12 +14,12 @@ Developers and LLM agents often run untrusted code with broad system access. Thi
 
 ### 3. User Stories
 
-| Role          | Need                                                                  |
-|---------------|-----------------------------------------------------------------------|
-| Developer     | Start coding immediately from a fresh clone, with no setup friction.  |
-| Consultant    | Fully isolated client environments.                                   |
+| Role          | Need                                                                 |
+| ------------- | -------------------------------------------------------------------- |
+| Developer     | Start coding immediately from a fresh clone, with no setup friction. |
+| Consultant    | Fully isolated client environments.                                  |
 | LLM Agent     | Secure sandbox to read/write/run project code safely.                |
-| Returning Dev | Rejoin a project instantly.                                           |
+| Returning Dev | Rejoin a project instantly.                                          |
 
 ### 4. Core Requirements
 
