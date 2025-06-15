@@ -8,6 +8,7 @@ use crate::constants::{binaries, bubblewrap, devices, env_vars, filesystem, path
 use crate::environment::Environment;
 use crate::error::SandboxError;
 use crate::session::Session;
+use crate::sandbox::prepare_sandbox_env_vars;
 
 pub async fn enter_sandbox(
     session: &Session,
@@ -22,7 +23,6 @@ pub async fn enter_sandbox(
 
     let project_dir = session.project_dir();
     let shell_command = environment.shell_command();
-    let _shell_args: Vec<&str> = shell_command.split_whitespace().collect();
 
     info!("Using bubblewrap to create sandbox");
     info!("Shell command: {}", shell_command);
@@ -108,25 +108,10 @@ pub async fn enter_sandbox(
     // Set working directory
     cmd.args([bubblewrap::CHDIR, &project_dir.to_string_lossy()]);
 
-    // Add environment variables
-    cmd.env(env_vars::HOME, project_dir);
-    cmd.env(env_vars::USER, sandbox::USER);
-    cmd.env(
-        env_vars::TERM,
-        std::env::var(env_vars::TERM).unwrap_or_else(|_| sandbox::DEFAULT_TERM.to_string()),
-    );
-
-    // Add cached environment variables
-    for (key, value) in environment_vars {
-        // Skip certain variables that should be handled by the sandbox
-        if !matches!(key.as_str(), "HOME" | "USER" | "TERM" | "PWD") {
-            // Override build directories to use /tmp
-            let value = match key.as_str() {
-                "NIX_BUILD_TOP" | "TEMP" | "TEMPDIR" | "TMP" | "TMPDIR" => "/tmp",
-                _ => value,
-            };
-            cmd.env(key, value);
-        }
+    // Add all environment variables
+    let env_vars = prepare_sandbox_env_vars(project_dir, environment_vars);
+    for (key, value) in &env_vars {
+        cmd.env(key, value);
     }
 
     // Execute the shell command (use bash to ensure proper environment)
@@ -269,25 +254,10 @@ pub async fn exec_in_sandbox(
     // Set working directory
     cmd.args([bubblewrap::CHDIR, &project_dir.to_string_lossy()]);
 
-    // Add environment variables
-    cmd.env(env_vars::HOME, project_dir);
-    cmd.env(env_vars::USER, sandbox::USER);
-    cmd.env(
-        env_vars::TERM,
-        std::env::var(env_vars::TERM).unwrap_or_else(|_| sandbox::DEFAULT_TERM.to_string()),
-    );
-
-    // Add cached environment variables
-    for (key, value) in environment_vars {
-        // Skip certain variables that should be handled by the sandbox
-        if !matches!(key.as_str(), "HOME" | "USER" | "TERM" | "PWD") {
-            // Override build directories to use /tmp
-            let value = match key.as_str() {
-                "NIX_BUILD_TOP" | "TEMP" | "TEMPDIR" | "TMP" | "TMPDIR" => "/tmp",
-                _ => value,
-            };
-            cmd.env(key, value);
-        }
+    // Add all environment variables
+    let env_vars = prepare_sandbox_env_vars(project_dir, environment_vars);
+    for (key, value) in &env_vars {
+        cmd.env(key, value);
     }
 
     // Execute the command directly

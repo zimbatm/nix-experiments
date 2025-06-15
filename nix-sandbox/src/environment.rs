@@ -69,23 +69,13 @@ impl Environment {
             EnvironmentType::Devenv => binaries::NIX_SHELL,
         };
 
-        // Use which to resolve the binary path
-        let mut resolved_path = which::which(binary_name)
-            .map_err(|_| SandboxError::BinaryNotFound(binary_name.to_string()))?;
-
-        // Follow symlinks until we get the actual binary
-        while let Ok(target) = std::fs::read_link(&resolved_path) {
-            // If the target is relative, resolve it relative to the symlink's directory
-            if target.is_absolute() {
-                resolved_path = target;
-            } else if let Some(parent) = resolved_path.parent() {
-                resolved_path = parent.join(target);
-            }
-        }
+        // Use which to resolve the binary path and canonicalize to follow all symlinks
+        let resolved_path = which::which(binary_name)
+            .map_err(|_| SandboxError::BinaryNotFound(binary_name.to_string()))?
+            .canonicalize()?;
 
         // Verify the final resolved binary is in /nix/store
-        let path_str = resolved_path.to_string_lossy();
-        if !path_str.starts_with(paths::NIX_STORE) {
+        if !resolved_path.starts_with(paths::NIX_STORE) {
             return Err(SandboxError::BinaryNotInNixStore {
                 binary: binary_name.to_string(),
                 path: resolved_path,

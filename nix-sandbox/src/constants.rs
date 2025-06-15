@@ -6,8 +6,6 @@ pub mod paths {
     /// Path to the Nix daemon socket
     pub const NIX_DAEMON_SOCKET: &str = "/nix/var/nix/daemon-socket/socket";
 
-    /// Directory containing the Nix daemon socket
-    pub const NIX_DAEMON_SOCKET_DIR: &str = "/nix/var/nix/daemon-socket";
 
     /// NixOS system binaries path (symlinks that resolve to /nix/store)
     pub const _NIXOS_SYSTEM_PATH: &str = "/run/current-system/sw/";
@@ -46,6 +44,7 @@ pub mod binaries {
     pub const BUBBLEWRAP: &str = "bwrap";
 
     /// macOS sandbox-exec binary
+    #[cfg(target_os = "macos")]
     pub const SANDBOX_EXEC: &str = "sandbox-exec";
 }
 
@@ -133,6 +132,7 @@ pub mod filesystem {
     pub const TMP_DIR: &str = "/tmp";
 
     /// Nix store directory
+    #[cfg(target_os = "macos")]
     pub const NIX_STORE_DIR: &str = "/nix/store";
 }
 
@@ -159,6 +159,7 @@ pub mod nix_commands {
 }
 
 /// macOS sandbox profile flags
+#[cfg(target_os = "macos")]
 pub mod macos_sandbox {
     /// Profile file flag
     pub const PROFILE_FLAG: &str = "-f";

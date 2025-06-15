@@ -9,7 +9,6 @@ use crate::error::SandboxError;
 /// Information about a git repository
 #[derive(Debug, Clone)]
 struct GitRepositoryInfo {
-    _root: PathBuf,
     project_name: String,
 }
 
@@ -106,7 +105,6 @@ impl SessionManager {
             .unwrap_or("project");
 
         Some(GitRepositoryInfo {
-            _root: PathBuf::from(git_root),
             project_name: project_name.to_string(),
         })
     }
@@ -227,7 +225,6 @@ mod tests {
     fn test_session_manager_new() {
         let temp_dir = TempDir::new().unwrap();
         let config = Config {
-            _state_dir: temp_dir.path().to_path_buf(),
             sessions_dir: temp_dir.path().join("sessions"),
             cache_dir: temp_dir.path().join("cache"),
         };
@@ -241,7 +238,6 @@ mod tests {
     fn test_find_git_repository_none_for_non_git_dir() {
         let temp_dir = TempDir::new().unwrap();
         let config = Config {
-            _state_dir: temp_dir.path().to_path_buf(),
             sessions_dir: temp_dir.path().join("sessions"),
             cache_dir: temp_dir.path().join("cache"),
         };
@@ -293,7 +289,6 @@ mod tests {
         std::fs::create_dir_all(temp_dir.path().join("sessions")).unwrap();
 
         let config = Config {
-            _state_dir: temp_dir.path().to_path_buf(),
             sessions_dir: temp_dir.path().join("sessions"),
             cache_dir: temp_dir.path().join("cache"),
         };
@@ -315,7 +310,6 @@ mod tests {
         std::fs::create_dir_all(&sessions_dir).unwrap();
 
         let config = Config {
-            _state_dir: temp_dir.path().to_path_buf(),
             sessions_dir,
             cache_dir: temp_dir.path().join("cache"),
         };
@@ -337,7 +331,6 @@ mod tests {
         std::fs::create_dir_all(sessions_dir.join("session2")).unwrap();
 
         let config = Config {
-            _state_dir: temp_dir.path().to_path_buf(),
             sessions_dir: sessions_dir.clone(),
             cache_dir: temp_dir.path().join("cache"),
         };

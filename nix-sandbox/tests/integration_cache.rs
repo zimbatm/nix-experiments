@@ -17,7 +17,6 @@ fn create_test_config() -> Config {
     fs::create_dir_all(&cache_dir).unwrap();
 
     Config {
-        _state_dir: state_dir,
         sessions_dir,
         cache_dir,
     }

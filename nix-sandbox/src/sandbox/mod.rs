@@ -1,4 +1,6 @@
+#[cfg(target_os = "linux")]
 pub mod linux;
+#[cfg(target_os = "macos")]
 pub mod macos;
 
 use anyhow::Result;
@@ -12,8 +14,40 @@ use crate::environment::Environment;
 use crate::error::SandboxError;
 use crate::session::Session;
 
+/// Common function to prepare environment variables for sandbox
+pub fn prepare_sandbox_env_vars(
+    project_dir: &std::path::Path,
+    cached_env_vars: &HashMap<String, String>,
+) -> HashMap<String, String> {
+    use crate::constants::{env_vars, sandbox};
+    
+    let mut env_vars = HashMap::new();
+    
+    // Set basic sandbox environment
+    env_vars.insert(env_vars::HOME.to_string(), project_dir.to_string_lossy().to_string());
+    env_vars.insert(env_vars::USER.to_string(), sandbox::USER.to_string());
+    env_vars.insert(
+        env_vars::TERM.to_string(),
+        std::env::var(env_vars::TERM).unwrap_or_else(|_| sandbox::DEFAULT_TERM.to_string()),
+    );
+    
+    // Add cached environment variables
+    for (key, value) in cached_env_vars {
+        // Skip certain variables that should be handled by the sandbox
+        if !matches!(key.as_str(), "HOME" | "USER" | "TERM" | "PWD") {
+            // Override build directories to use /tmp
+            let value = match key.as_str() {
+                "NIX_BUILD_TOP" | "TEMP" | "TEMPDIR" | "TMP" | "TMPDIR" => "/tmp",
+                _ => value,
+            };
+            env_vars.insert(key.clone(), value.to_string());
+        }
+    }
+    
+    env_vars
+}
+
 pub struct Sandbox {
-    _config: Config,
     session: Session,
     environment: Environment,
     cache: EnvironmentCache,
@@ -24,7 +58,6 @@ impl Sandbox {
         let cache = EnvironmentCache::new(config.clone());
 
         Ok(Sandbox {
-            _config: config.clone(),
             session: session.clone(),
             environment: environment.clone(),
             cache,
@@ -89,9 +122,6 @@ impl Sandbox {
 
     async fn build_and_cache_environment(&self) -> Result<HashMap<String, String>> {
         info!("Building Nix environment...");
-
-        let shell_command = self.environment.shell_command();
-        let _shell_args: Vec<&str> = shell_command.split_whitespace().collect();
 
         // Use nix-instantiate or nix print-dev-env to get environment without entering shell
         let env_output =

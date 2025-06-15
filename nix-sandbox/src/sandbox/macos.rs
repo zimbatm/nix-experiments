@@ -6,9 +6,10 @@ use std::process::Command;
 use tempfile::NamedTempFile;
 use tracing::info;
 
-use crate::constants::{binaries, devices, env_vars, filesystem, macos_sandbox, paths, sandbox};
+use crate::constants::{binaries, devices, env_vars, filesystem, macos_sandbox, paths};
 use crate::environment::Environment;
 use crate::session::Session;
+use crate::sandbox::prepare_sandbox_env_vars;
 
 pub async fn enter_sandbox(
     session: &Session,
@@ -17,7 +18,6 @@ pub async fn enter_sandbox(
 ) -> Result<()> {
     let project_dir = session.project_dir();
     let shell_command = environment.shell_command();
-    let _shell_args: Vec<&str> = shell_command.split_whitespace().collect();
 
     info!("Creating macOS sandbox profile");
 
@@ -104,20 +104,10 @@ pub async fn enter_sandbox(
     ]);
     cmd.current_dir(project_dir);
 
-    // Add environment variables
-    cmd.env(env_vars::HOME, project_dir);
-    cmd.env(env_vars::USER, sandbox::USER);
-    cmd.env(
-        env_vars::TERM,
-        std::env::var(env_vars::TERM).unwrap_or_else(|_| sandbox::DEFAULT_TERM.to_string()),
-    );
-
-    // Add cached environment variables
-    for (key, value) in environment_vars {
-        // Skip certain variables that should be handled by the sandbox
-        if !matches!(key.as_str(), "HOME" | "USER" | "TERM" | "PWD") {
-            cmd.env(key, value);
-        }
+    // Add all environment variables
+    let env_vars = prepare_sandbox_env_vars(project_dir, environment_vars);
+    for (key, value) in &env_vars {
+        cmd.env(key, value);
     }
 
     // Add shell command (use bash to ensure proper environment)
@@ -209,20 +199,10 @@ pub async fn exec_in_sandbox(
     ]);
     cmd.current_dir(project_dir);
 
-    // Add environment variables
-    cmd.env(env_vars::HOME, project_dir);
-    cmd.env(env_vars::USER, sandbox::USER);
-    cmd.env(
-        env_vars::TERM,
-        std::env::var(env_vars::TERM).unwrap_or_else(|_| sandbox::DEFAULT_TERM.to_string()),
-    );
-
-    // Add cached environment variables
-    for (key, value) in environment_vars {
-        // Skip certain variables that should be handled by the sandbox
-        if !matches!(key.as_str(), "HOME" | "USER" | "TERM" | "PWD") {
-            cmd.env(key, value);
-        }
+    // Add all environment variables
+    let env_vars = prepare_sandbox_env_vars(project_dir, environment_vars);
+    for (key, value) in &env_vars {
+        cmd.env(key, value);
     }
 
     // Add the command and its arguments

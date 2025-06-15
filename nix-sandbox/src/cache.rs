@@ -49,6 +49,18 @@ impl EnvironmentCache {
         Self { config }
     }
 
+    fn wrap_cache_error<T, E: Into<anyhow::Error>>(
+        operation: &str,
+        path: &Path,
+        result: Result<T, E>,
+    ) -> Result<T> {
+        result.map_err(|e| SandboxError::CacheError {
+            operation: operation.to_string(),
+            path: path.to_path_buf(),
+            source: e.into(),
+        }.into())
+    }
+
     pub fn get_cache_dir(&self, cache_key: &str) -> PathBuf {
         self.config.cache_dir.join(cache_key)
     }
@@ -63,19 +75,17 @@ impl EnvironmentCache {
 
     pub fn load_metadata(&self, cache_key: &str) -> Result<CacheMetadata> {
         let metadata_path = self.get_metadata_path(cache_key);
-        let content =
-            std::fs::read_to_string(&metadata_path).map_err(|e| SandboxError::CacheError {
-                operation: "read metadata".to_string(),
-                path: metadata_path.clone(),
-                source: e.into(),
-            })?;
+        let content = Self::wrap_cache_error(
+            "read metadata",
+            &metadata_path,
+            std::fs::read_to_string(&metadata_path),
+        )?;
 
-        let metadata: CacheMetadata =
-            serde_json::from_str(&content).map_err(|e| SandboxError::CacheError {
-                operation: "parse metadata".to_string(),
-                path: metadata_path,
-                source: e.into(),
-            })?;
+        let metadata: CacheMetadata = Self::wrap_cache_error(
+            "parse metadata",
+            &metadata_path,
+            serde_json::from_str(&content),
+        )?;
 
         Ok(metadata)
     }
@@ -90,11 +100,11 @@ impl EnvironmentCache {
         let cache_dir = self.get_cache_dir(&cache_key);
 
         // Create cache directory
-        std::fs::create_dir_all(&cache_dir).map_err(|e| SandboxError::CacheError {
-            operation: "create cache directory".to_string(),
-            path: cache_dir.clone(),
-            source: e.into(),
-        })?;
+        Self::wrap_cache_error(
+            "create cache directory",
+            &cache_dir,
+            std::fs::create_dir_all(&cache_dir),
+        )?;
 
         // Create metadata
         let metadata = CacheMetadata::new(
@@ -106,18 +116,17 @@ impl EnvironmentCache {
 
         // Write metadata to file
         let metadata_path = self.get_metadata_path(&metadata.cache_key);
-        let metadata_content =
-            serde_json::to_string_pretty(&metadata).map_err(|e| SandboxError::CacheError {
-                operation: "serialize metadata".to_string(),
-                path: metadata_path.clone(),
-                source: e.into(),
-            })?;
+        let metadata_content = Self::wrap_cache_error(
+            "serialize metadata",
+            &metadata_path,
+            serde_json::to_string_pretty(&metadata),
+        )?;
 
-        std::fs::write(&metadata_path, metadata_content).map_err(|e| SandboxError::CacheError {
-            operation: "write metadata".to_string(),
-            path: metadata_path,
-            source: e.into(),
-        })?;
+        Self::wrap_cache_error(
+            "write metadata",
+            &metadata_path,
+            std::fs::write(&metadata_path, metadata_content),
+        )?;
 
         Ok(())
     }
@@ -156,11 +165,11 @@ impl EnvironmentCache {
     pub fn remove_cache(&self, cache_key: &str) -> Result<()> {
         let cache_dir = self.get_cache_dir(cache_key);
         if cache_dir.exists() {
-            std::fs::remove_dir_all(&cache_dir).map_err(|e| SandboxError::CacheError {
-                operation: "remove cache".to_string(),
-                path: cache_dir,
-                source: e.into(),
-            })?;
+            Self::wrap_cache_error(
+                "remove cache",
+                &cache_dir,
+                std::fs::remove_dir_all(&cache_dir),
+            )?;
         }
         Ok(())
     }
@@ -225,7 +234,6 @@ mod tests {
         std::fs::create_dir_all(&cache_dir).unwrap();
 
         Config {
-            _state_dir: state_dir,
             sessions_dir,
             cache_dir,
         }

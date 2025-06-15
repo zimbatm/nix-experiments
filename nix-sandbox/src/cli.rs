@@ -32,7 +32,7 @@ pub enum Commands {
     Clean,
 }
 
-pub async fn handle_enter(session_name: Option<String>) -> Result<()> {
+fn setup_sandbox(session_name: Option<String>) -> Result<(Config, Session, Environment, Sandbox)> {
     let config = Config::load()?;
     let current_dir = std::env::current_dir()?;
 
@@ -44,14 +44,20 @@ pub async fn handle_enter(session_name: Option<String>) -> Result<()> {
         Session::new_in_place(&current_dir)?
     };
 
-    info!("Entering sandbox for: {}", session.project_dir().display());
-
     // Detect environment
     let env = Environment::detect(session.project_dir())?;
     info!("Detected environment type: {:?}", env.env_type());
 
-    // Create and enter sandbox
+    // Create sandbox
     let sandbox = Sandbox::new(&config, &session, &env)?;
+
+    Ok((config, session, env, sandbox))
+}
+
+pub async fn handle_enter(session_name: Option<String>) -> Result<()> {
+    let (_config, session, _env, sandbox) = setup_sandbox(session_name)?;
+    
+    info!("Entering sandbox for: {}", session.project_dir().display());
     sandbox.enter().await?;
 
     Ok(())
@@ -62,25 +68,9 @@ pub async fn handle_exec(
     command: String,
     args: Vec<String>,
 ) -> Result<()> {
-    let config = Config::load()?;
-    let current_dir = std::env::current_dir()?;
-
-    // Initialize session
-    let session_mgr = SessionManager::new(&config)?;
-    let session = if let Some(name) = session_name {
-        session_mgr.create_or_get_session(&name, &current_dir)?
-    } else {
-        Session::new_in_place(&current_dir)?
-    };
-
+    let (_config, _session, _env, sandbox) = setup_sandbox(session_name)?;
+    
     info!("Executing in sandbox: {} {:?}", command, args);
-
-    // Detect environment
-    let env = Environment::detect(session.project_dir())?;
-    info!("Detected environment type: {:?}", env.env_type());
-
-    // Create and execute in sandbox
-    let sandbox = Sandbox::new(&config, &session, &env)?;
     sandbox.exec(command, args).await?;
 
     Ok(())

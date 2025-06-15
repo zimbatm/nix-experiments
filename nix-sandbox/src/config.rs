@@ -6,7 +6,6 @@ use crate::error::SandboxError;
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub _state_dir: PathBuf,
     pub sessions_dir: PathBuf,
     pub cache_dir: PathBuf,
 }
@@ -32,7 +31,6 @@ impl Config {
         std::fs::create_dir_all(&cache_dir)?;
 
         Ok(Config {
-            _state_dir: state_dir,
             sessions_dir,
             cache_dir,
         })

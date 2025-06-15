@@ -13,10 +13,8 @@ pub enum SandboxError {
     SandboxSetupError(String),
 
     #[error("Unsupported operating system: {0}")]
+    #[allow(dead_code)] // Used when compiling on unsupported platforms
     UnsupportedOS(String),
-
-    #[error("Session error: {0}")]
-    _SessionError(String),
 
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
