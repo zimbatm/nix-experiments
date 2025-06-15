@@ -27,12 +27,15 @@
 ## Features to Complete
 
 - [ ] Implement proper environment caching to speed up re-entry
-- [ ] Add file watcher to detect changes to flake.nix/devenv.nix
-- [ ] Implement prompt to reload when environment files change
-- [ ] Add support for per-project configuration overrides
+- [ ] Add file watcher to detect changes to flake.nix/devenv.nix (inspired by dune's watch mode)
+- [ ] Implement prompt to reload when environment files change with diff visualization
+- [ ] Add support for per-project configuration overrides via .nix-sandbox config file
 - [ ] Add support for exposing specific host paths (e.g., ~/.gitconfig)
-- [ ] Improve error messages and user feedback
-- [ ] Add progress indicators for long-running operations
+- [ ] Improve error messages and user feedback with structured output
+- [ ] Add progress indicators for long-running operations with build plan visualization
+- [ ] Implement incremental environment updates (inspired by dune's incremental builds)
+- [ ] Add workspace-wide operations for multi-session management
+- [ ] Support dynamic environment parameters (similar to dune's parameterized builds)
 
 ## Documentation
 
@@ -55,13 +58,14 @@
 - [x] Create constants module for magic strings and hard-coded values
 - [x] Break down complex functions (Environment::cache_key, SessionManager::create_or_get_session)
 - [ ] Extract duplicate code patterns (path building, git commands, file hashing)
-- [ ] Create missing abstractions (command execution, Git repository, structured shell commands)
-- [ ] Unify error handling with custom Result type
+- [ ] Create structured command execution abstraction (inspired by dune's command handling)
+- [ ] Unify error handling with custom Result type and structured error context
 - [ ] Improve type safety (structured ShellCommand instead of string parsing)
 - [ ] Standardize naming conventions (remove inconsistent get\_ prefixes)
 - [ ] Separate concerns in Config::load() method
 - [ ] Create Git utility module for repository operations
-- [ ] Extract command execution abstraction for sandbox and session management
+- [ ] Implement dependency tracking for better cache invalidation (like dune's dep tracking)
+- [ ] Add command composition utilities for complex operations
 
 ## Future Enhancements (v2+)
 
@@ -74,3 +78,9 @@
 - [ ] Support for devcontainer.json
 - [ ] Network isolation options
 - [ ] Resource limits (CPU, memory)
+- [ ] Environment promotion mechanism (like dune's promotion)
+- [ ] Build plan export/visualization for debugging
+- [ ] Cross-project dependency management
+- [ ] Remote development support with distributed caching
+
+[dune](https://github.com/nmattia/dune)
