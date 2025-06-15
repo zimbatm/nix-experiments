@@ -15,6 +15,17 @@ pub enum Commands {
         /// Session name or branch name (optional)
         session: Option<String>,
     },
+    /// Execute a command in the sandbox environment
+    Exec {
+        /// Session name or branch name (optional)
+        session: Option<String>,
+        /// Command to execute
+        #[arg(required = true)]
+        command: String,
+        /// Arguments for the command
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
     /// List active sessions
     List,
     /// Clean up cached environments
@@ -42,6 +53,35 @@ pub async fn handle_enter(session_name: Option<String>) -> Result<()> {
     // Create and enter sandbox
     let sandbox = Sandbox::new(&config, &session, &env)?;
     sandbox.enter().await?;
+
+    Ok(())
+}
+
+pub async fn handle_exec(
+    session_name: Option<String>,
+    command: String,
+    args: Vec<String>,
+) -> Result<()> {
+    let config = Config::load()?;
+    let current_dir = std::env::current_dir()?;
+
+    // Initialize session
+    let session_mgr = SessionManager::new(&config)?;
+    let session = if let Some(name) = session_name {
+        session_mgr.create_or_get_session(&name, &current_dir)?
+    } else {
+        Session::new_in_place(&current_dir)?
+    };
+
+    info!("Executing in sandbox: {} {:?}", command, args);
+
+    // Detect environment
+    let env = Environment::detect(session.project_dir())?;
+    info!("Detected environment type: {:?}", env.env_type());
+
+    // Create and execute in sandbox
+    let sandbox = Sandbox::new(&config, &session, &env)?;
+    sandbox.exec(command, args).await?;
 
     Ok(())
 }

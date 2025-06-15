@@ -41,6 +41,13 @@ nix-sandbox enter
 # Enter sandbox for a specific branch (creates separate workspace)
 nix-sandbox enter feature-branch
 
+# Execute a command directly in the sandbox without spawning a shell
+nix-sandbox exec ls -la
+nix-sandbox exec cargo build --release
+
+# Execute a command in a specific session
+nix-sandbox exec feature-branch cargo test
+
 # List active sessions
 nix-sandbox list
 

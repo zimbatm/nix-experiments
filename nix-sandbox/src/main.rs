@@ -35,6 +35,13 @@ async fn main() -> Result<()> {
         Commands::Enter { session } => {
             cli::handle_enter(session).await?;
         }
+        Commands::Exec {
+            session,
+            command,
+            args,
+        } => {
+            cli::handle_exec(session, command, args).await?;
+        }
         Commands::List => {
             cli::handle_list().await?;
         }

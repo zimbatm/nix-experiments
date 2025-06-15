@@ -59,6 +59,34 @@ impl Sandbox {
         }
     }
 
+    pub async fn exec(&self, command: String, args: Vec<String>) -> Result<()> {
+        // Check if we have a valid cached environment
+        let cached_env = self.cache.get_cached_environment(&self.environment)?;
+
+        let environment_vars = if let Some(cached_metadata) = cached_env {
+            info!("Using cached environment");
+            cached_metadata.environment_vars
+        } else {
+            info!("Building new environment (no valid cache found)");
+            self.build_and_cache_environment().await?
+        };
+
+        #[cfg(target_os = "linux")]
+        {
+            linux::exec_in_sandbox(&self.session, &self.environment, &environment_vars, command, args).await
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            macos::exec_in_sandbox(&self.session, &self.environment, &environment_vars, command, args).await
+        }
+
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        {
+            Err(SandboxError::UnsupportedOS(std::env::consts::OS.to_string()).into())
+        }
+    }
+
     async fn build_and_cache_environment(&self) -> Result<HashMap<String, String>> {
         info!("Building Nix environment...");
 

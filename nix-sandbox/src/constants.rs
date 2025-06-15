@@ -96,6 +96,9 @@ pub mod bubblewrap {
     /// Bind mount directory (read-only)
     pub const RO_BIND: &str = "--ro-bind";
 
+    /// Create directory
+    pub const DIR: &str = "--dir";
+
     /// Separator for command arguments
     pub const COMMAND_SEPARATOR: &str = "--";
 }

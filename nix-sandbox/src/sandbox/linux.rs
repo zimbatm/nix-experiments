@@ -159,3 +159,143 @@ pub async fn enter_sandbox(
     // Replace the current process
     Err(cmd.exec().into())
 }
+
+pub async fn exec_in_sandbox(
+    session: &Session,
+    environment: &Environment,
+    environment_vars: &HashMap<String, String>,
+    command: String,
+    args: Vec<String>,
+) -> Result<()> {
+    // Check if bubblewrap is installed
+    let bwrap_path = which::which(binaries::BUBBLEWRAP).map_err(|_| {
+        SandboxError::SandboxSetupError("bubblewrap (bwrap) is not installed".into())
+    })?;
+    info!("Found bwrap at: {:?}", bwrap_path);
+
+    let project_dir = session.project_dir();
+
+    info!("Using bubblewrap to execute command: {} {:?}", command, args);
+
+    // Build bubblewrap command
+    let mut cmd = Command::new(&bwrap_path);
+
+    // Basic setup
+    cmd.args([
+        bubblewrap::DIE_WITH_PARENT,
+        bubblewrap::UNSHARE_ALL,
+        bubblewrap::SHARE_NET, // Allow network for Nix daemon
+        bubblewrap::HOSTNAME,
+        sandbox::HOSTNAME,
+    ]);
+
+    // Mount minimal /dev
+    cmd.args([
+        bubblewrap::DEV,
+        filesystem::DEV_DIR,
+        bubblewrap::DEV_BIND,
+        devices::NULL,
+        devices::NULL,
+        bubblewrap::DEV_BIND,
+        devices::ZERO,
+        devices::ZERO,
+        bubblewrap::DEV_BIND,
+        devices::URANDOM,
+        devices::URANDOM,
+        bubblewrap::DEV_BIND,
+        devices::RANDOM,
+        devices::RANDOM,
+    ]);
+
+    // Create /tmp
+    cmd.args([bubblewrap::TMPFS, filesystem::TMP_DIR]);
+
+    // Mount /nix/store read-only
+    cmd.args([
+        bubblewrap::RO_BIND,
+        paths::NIX_STORE,
+        paths::NIX_STORE,
+    ]);
+
+    // Mount nix daemon socket if it exists
+    let nix_daemon_socket = std::path::Path::new(paths::NIX_DAEMON_SOCKET);
+    if let Some(parent) = nix_daemon_socket.parent() {
+        if parent.exists() {
+            cmd.args([
+                bubblewrap::RO_BIND,
+                &parent.to_string_lossy(),
+                &parent.to_string_lossy(),
+            ]);
+        }
+    }
+
+    // Mount project directory read-write
+    cmd.args([
+        bubblewrap::BIND,
+        &project_dir.to_string_lossy(),
+        &project_dir.to_string_lossy(),
+    ]);
+
+    // Mount git directory if it exists (for the original project)
+    if let Some(git_dir) = environment.project_dir().parent().and_then(|p| p.parent()) {
+        let original_git_dir = git_dir.join(".git");
+        if original_git_dir.exists() {
+            cmd.args([
+                bubblewrap::RO_BIND,
+                &original_git_dir.to_string_lossy(),
+                &original_git_dir.to_string_lossy(),
+            ]);
+        }
+    }
+
+    // Mount user nix config if it exists
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let user_nix_config = std::path::Path::new(&home_dir).join(".config/nix");
+    if user_nix_config.exists() {
+        // Create parent directory
+        if let Some(parent) = user_nix_config.parent() {
+            cmd.args([
+                bubblewrap::DIR,
+                &parent.to_string_lossy(),
+            ]);
+            cmd.args([
+                bubblewrap::RO_BIND,
+                &user_nix_config.to_string_lossy(),
+                &user_nix_config.to_string_lossy(),
+            ]);
+        }
+    }
+
+    // Set working directory
+    cmd.args([bubblewrap::CHDIR, &project_dir.to_string_lossy()]);
+
+    // Add environment variables
+    cmd.env(env_vars::HOME, project_dir);
+    cmd.env(env_vars::USER, sandbox::USER);
+    cmd.env(
+        env_vars::TERM,
+        std::env::var(env_vars::TERM).unwrap_or_else(|_| sandbox::DEFAULT_TERM.to_string()),
+    );
+
+    // Add cached environment variables
+    for (key, value) in environment_vars {
+        // Skip certain variables that should be handled by the sandbox
+        if !matches!(key.as_str(), "HOME" | "USER" | "TERM" | "PWD") {
+            // Override build directories to use /tmp
+            let value = match key.as_str() {
+                "NIX_BUILD_TOP" | "TEMP" | "TEMPDIR" | "TMP" | "TMPDIR" => "/tmp",
+                _ => value,
+            };
+            cmd.env(key, value);
+        }
+    }
+
+    // Execute the command directly
+    cmd.args([bubblewrap::COMMAND_SEPARATOR, &command]);
+    for arg in args {
+        cmd.arg(arg);
+    }
+
+    // Replace the current process
+    Err(cmd.exec().into())
+}
