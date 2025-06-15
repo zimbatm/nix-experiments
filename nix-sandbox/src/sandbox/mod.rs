@@ -67,17 +67,20 @@ impl Sandbox {
         })
     }
 
-    pub async fn enter(&self) -> Result<()> {
-        // Check if we have a valid cached environment
+    async fn get_or_build_environment(&self) -> Result<HashMap<String, String>> {
         let cached_env = self.cache.get_cached_environment(&self.environment)?;
 
-        let environment_vars = if let Some(cached_metadata) = cached_env {
+        if let Some(cached_metadata) = cached_env {
             info!("Using cached environment");
-            cached_metadata.environment_vars
+            Ok(cached_metadata.environment_vars)
         } else {
             info!("Building new environment (no valid cache found)");
-            self.build_and_cache_environment().await?
-        };
+            self.build_and_cache_environment().await
+        }
+    }
+
+    pub async fn enter(&self) -> Result<()> {
+        let environment_vars = self.get_or_build_environment().await?;
 
         #[cfg(target_os = "linux")]
         {
@@ -96,16 +99,7 @@ impl Sandbox {
     }
 
     pub async fn exec(&self, command: String, args: Vec<String>) -> Result<()> {
-        // Check if we have a valid cached environment
-        let cached_env = self.cache.get_cached_environment(&self.environment)?;
-
-        let environment_vars = if let Some(cached_metadata) = cached_env {
-            info!("Using cached environment");
-            cached_metadata.environment_vars
-        } else {
-            info!("Building new environment (no valid cache found)");
-            self.build_and_cache_environment().await?
-        };
+        let environment_vars = self.get_or_build_environment().await?;
 
         #[cfg(target_os = "linux")]
         {
@@ -233,33 +227,29 @@ impl Sandbox {
         Ok(env_vars)
     }
 
+    fn extract_store_paths_from_colon_separated(value: &str, store_paths: &mut std::collections::HashSet<String>) {
+        for path_entry in value.split(':') {
+            if let Some(stripped) = path_entry.strip_prefix("/nix/store/") {
+                if let Some(end_pos) = stripped.find('/') {
+                    let store_path = &path_entry[..11 + end_pos];
+                    store_paths.insert(store_path.to_string());
+                }
+            }
+        }
+    }
+
     fn extract_nix_store_paths(&self, env_vars: &HashMap<String, String>) -> Vec<String> {
         let mut store_paths = std::collections::HashSet::new();
 
         // Check PATH for nix store paths
         if let Some(path) = env_vars.get("PATH") {
-            for path_entry in path.split(':') {
-                if let Some(stripped) = path_entry.strip_prefix("/nix/store/") {
-                    // Extract the store path (everything up to the first / after /nix/store/hash-)
-                    if let Some(end_pos) = stripped.find('/') {
-                        let store_path = &path_entry[..11 + end_pos];
-                        store_paths.insert(store_path.to_string());
-                    }
-                }
-            }
+            Self::extract_store_paths_from_colon_separated(path, &mut store_paths);
         }
 
         // Check other common variables that might contain nix store paths
         for var in ["LD_LIBRARY_PATH", "PKG_CONFIG_PATH", "CMAKE_PREFIX_PATH"] {
             if let Some(value) = env_vars.get(var) {
-                for path_entry in value.split(':') {
-                    if let Some(stripped) = path_entry.strip_prefix("/nix/store/") {
-                        if let Some(end_pos) = stripped.find('/') {
-                            let store_path = &path_entry[..11 + end_pos];
-                            store_paths.insert(store_path.to_string());
-                        }
-                    }
-                }
+                Self::extract_store_paths_from_colon_separated(value, &mut store_paths);
             }
         }
 

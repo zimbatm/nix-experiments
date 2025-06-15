@@ -6,8 +6,6 @@ pub mod paths {
     /// Path to the Nix daemon socket
     pub const NIX_DAEMON_SOCKET: &str = "/nix/var/nix/daemon-socket/socket";
 
-    /// NixOS system binaries path (symlinks that resolve to /nix/store)
-    pub const _NIXOS_SYSTEM_PATH: &str = "/run/current-system/sw/";
 
     /// System-wide Nix configuration directory
     pub const NIX_SYSTEM_CONFIG: &str = "/etc/nix";

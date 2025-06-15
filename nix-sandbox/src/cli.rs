@@ -32,23 +32,27 @@ pub enum Commands {
     Clean,
 }
 
-fn setup_sandbox(session_name: Option<String>) -> Result<(Config, Session, Environment, Sandbox)> {
-    let config = Config::load()?;
+fn create_session(config: &Config, session_name: Option<String>) -> Result<Session> {
     let current_dir = std::env::current_dir()?;
-
-    // Initialize session
-    let session_mgr = SessionManager::new(&config)?;
-    let session = if let Some(name) = session_name {
-        session_mgr.create_or_get_session(&name, &current_dir)?
+    let session_mgr = SessionManager::new(config)?;
+    
+    if let Some(name) = session_name {
+        session_mgr.create_or_get_session(&name, &current_dir)
     } else {
-        Session::new_in_place(&current_dir)?
-    };
+        Session::new_in_place(&current_dir)
+    }
+}
 
-    // Detect environment
+fn detect_environment(session: &Session) -> Result<Environment> {
     let env = Environment::detect(session.project_dir())?;
     info!("Detected environment type: {:?}", env.env_type());
+    Ok(env)
+}
 
-    // Create sandbox
+fn setup_sandbox(session_name: Option<String>) -> Result<(Config, Session, Environment, Sandbox)> {
+    let config = Config::load()?;
+    let session = create_session(&config, session_name)?;
+    let env = detect_environment(&session)?;
     let sandbox = Sandbox::new(&config, &session, &env)?;
 
     Ok((config, session, env, sandbox))
