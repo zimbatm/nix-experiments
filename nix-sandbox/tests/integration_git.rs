@@ -307,23 +307,17 @@ fn test_worktree_with_named_session() -> anyhow::Result<()> {
 
     let binary = get_nix_sandbox_binary();
 
-    // Test with session names that might create worktrees
-    let session_names = ["dev-session", "test-env", "feature-work"];
+    // Test list command (sessions would need to be created with enter or exec first)
+    let output = Command::new(&binary)
+        .args(["list"])
+        .current_dir(temp_dir.path())
+        .output()?;
 
-    for session_name in &session_names {
-        let output = Command::new(&binary)
-            .args(["list"])
-            .env("NIX_SANDBOX_SESSION", session_name)
-            .current_dir(temp_dir.path())
-            .output()?;
-
-        assert!(
-            output.status.success(),
-            "Failed to create session '{}': {}",
-            session_name,
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
+    assert!(
+        output.status.success(),
+        "Failed to list sessions: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     Ok(())
 }
