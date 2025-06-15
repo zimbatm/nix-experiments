@@ -28,6 +28,7 @@ nix flake check
 
 # Run with debug logging
 RUST_LOG=debug cargo run -- enter
+RUST_LOG=debug cargo run -- exec -- ls -la
 
 # Install binary locally
 sudo cp target/release/nix-sandbox /usr/local/bin/
@@ -51,7 +52,7 @@ nix flake check
 
 This is a Rust CLI tool that creates secure, isolated development environments using Nix. The architecture follows a modular design:
 
-- **CLI Layer** (`src/cli.rs`): Handles command parsing and dispatching (enter, list, clean)
+- **CLI Layer** (`src/cli.rs`): Handles command parsing and dispatching (enter, exec, list, clean)
 - **Session Management** (`src/session.rs`): Manages Git workspaces and branch-based sessions
 - **Environment Detection** (`src/environment.rs`): Detects `flake.nix` or `devenv.nix` and generates cache keys
 - **Sandboxing** (`src/sandbox/`): OS-specific sandboxing implementations
@@ -63,7 +64,7 @@ This is a Rust CLI tool that creates secure, isolated development environments u
 
 - **Platform-specific code**: Sandboxing logic is separated by OS in `src/sandbox/linux.rs` and `src/sandbox/macos.rs`
 - **Environment types**: Supports both Nix flakes (`flake.nix`) and devenv (`devenv.nix`) with different shell commands
-- **Git integration**: Creates separate workspaces per branch when session names are provided
+- **Git integration**: Creates separate workspaces per branch when session names are provided via --session flag
 - **Caching**: Uses SHA256 hashes of environment files and modification times for cache invalidation
 
 ## Security Model

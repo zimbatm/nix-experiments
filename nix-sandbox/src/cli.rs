@@ -13,18 +13,17 @@ pub enum Commands {
     /// Enter a sandbox environment
     Enter {
         /// Session name or branch name (optional)
+        #[arg(long)]
         session: Option<String>,
     },
     /// Execute a command in the sandbox environment
     Exec {
         /// Session name or branch name (optional)
+        #[arg(long)]
         session: Option<String>,
-        /// Command to execute
-        #[arg(required = true)]
-        command: String,
-        /// Arguments for the command
-        #[arg(trailing_var_arg = true)]
-        args: Vec<String>,
+        /// Command and arguments to execute (use -- to separate from flags)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]
+        command: Vec<String>,
     },
     /// List active sessions
     List,
@@ -69,13 +68,17 @@ pub async fn handle_enter(session_name: Option<String>) -> Result<()> {
 
 pub async fn handle_exec(
     session_name: Option<String>,
-    command: String,
-    args: Vec<String>,
+    command: Vec<String>,
 ) -> Result<()> {
-    let (_config, _session, _env, sandbox) = setup_sandbox(session_name)?;
+    if command.is_empty() {
+        return Err(anyhow::anyhow!("No command specified"));
+    }
 
-    info!("Executing in sandbox: {} {:?}", command, args);
-    sandbox.exec(command, args).await?;
+    let (_config, _session, _env, sandbox) = setup_sandbox(session_name)?;
+    
+    let (cmd, args) = command.split_first().unwrap();
+    info!("Executing in sandbox: {} {:?}", cmd, args);
+    sandbox.exec(cmd.to_string(), args.to_vec()).await?;
 
     Ok(())
 }

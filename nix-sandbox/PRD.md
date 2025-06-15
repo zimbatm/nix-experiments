@@ -43,7 +43,7 @@ Developers and LLM agents often run untrusted code with broad system access. Thi
 #### 4.3. Git-Aware Session Management
 
 - By default, the sandbox runs **in-place** in the current Git working directory.
-- If a `<branch>` or session name is provided via `nix-sandbox enter <branch>`, it:
+- If a `<branch>` or session name is provided via `nix-sandbox enter --session <branch>`, it:
   - Creates a **separate Git workspace** linked to that branch (if not existing),
   - Checks out or creates the branch from `HEAD`,
   - Shares state if multiple sessions use the same branch.

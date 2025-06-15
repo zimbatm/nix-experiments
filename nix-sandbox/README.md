@@ -39,14 +39,14 @@ sudo cp target/release/nix-sandbox /usr/local/bin/
 nix-sandbox enter
 
 # Enter sandbox for a specific branch (creates separate workspace)
-nix-sandbox enter feature-branch
+nix-sandbox enter --session feature-branch
 
 # Execute a command directly in the sandbox without spawning a shell
-nix-sandbox exec ls -la
-nix-sandbox exec cargo build --release
+nix-sandbox exec -- ls -la
+nix-sandbox exec -- cargo build --release
 
 # Execute a command in a specific session
-nix-sandbox exec feature-branch cargo test
+nix-sandbox exec --session feature-branch -- cargo test
 
 # List active sessions
 nix-sandbox list
@@ -98,6 +98,7 @@ nix flake check
 
 # Run with logging
 RUST_LOG=debug cargo run -- enter
+RUST_LOG=debug cargo run -- exec -- ls -la
 
 # Check code quality
 cargo clippy

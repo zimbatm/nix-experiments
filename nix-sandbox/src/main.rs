@@ -38,9 +38,8 @@ async fn main() -> Result<()> {
         Commands::Exec {
             session,
             command,
-            args,
         } => {
-            cli::handle_exec(session, command, args).await?;
+            cli::handle_exec(session, command).await?;
         }
         Commands::List => {
             cli::handle_list().await?;
