@@ -88,8 +88,9 @@ impl Sandbox {
     }
 
     async fn get_flake_environment(&self) -> Result<String> {
+        // Use nix print-dev-env with JSON output for clean parsing
         let output = Command::new(self.environment.resolved_binary())
-            .args(["print-dev-env", "--impure"])
+            .args(["print-dev-env", "--json", "--impure"])
             .current_dir(self.environment.project_dir())
             .output()?;
 
@@ -126,42 +127,31 @@ impl Sandbox {
     fn parse_environment_output(&self, output: &str) -> Result<HashMap<String, String>> {
         let mut env_vars = HashMap::new();
 
-        // Parse bash-style export statements or simple KEY=VALUE pairs
-        for line in output.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
+        // Check if this is JSON output from nix print-dev-env
+        if output.trim_start().starts_with('{') {
+            // Parse JSON format
+            let json: serde_json::Value = serde_json::from_str(output)?;
+            
+            if let Some(variables) = json.get("variables").and_then(|v| v.as_object()) {
+                for (key, var_obj) in variables {
+                    if let Some(value) = var_obj.get("value").and_then(|v| v.as_str()) {
+                        env_vars.insert(key.clone(), value.to_string());
+                    }
+                }
             }
+        } else {
+            // Parse simple KEY=VALUE pairs from env command output
+            for line in output.lines() {
+                if line.is_empty() {
+                    continue;
+                }
 
-            // Handle "export KEY=VALUE" format
-            let line = if let Some(stripped) = line.strip_prefix("export ") {
-                stripped
-            } else {
-                line
-            };
-
-            // Handle "declare -x KEY=VALUE" format
-            let line = if let Some(stripped) = line.strip_prefix("declare -x ") {
-                stripped
-            } else {
-                line
-            };
-
-            // Parse KEY=VALUE
-            if let Some(eq_pos) = line.find('=') {
-                let key = line[..eq_pos].trim();
-                let value = line[eq_pos + 1..].trim();
-
-                // Remove quotes if present
-                let value = if (value.starts_with('"') && value.ends_with('"'))
-                    || (value.starts_with('\'') && value.ends_with('\''))
-                {
-                    &value[1..value.len() - 1]
-                } else {
-                    value
-                };
-
-                env_vars.insert(key.to_string(), value.to_string());
+                // Parse KEY=VALUE
+                if let Some(eq_pos) = line.find('=') {
+                    let key = &line[..eq_pos];
+                    let value = &line[eq_pos + 1..];
+                    env_vars.insert(key.to_string(), value.to_string());
+                }
             }
         }
 
