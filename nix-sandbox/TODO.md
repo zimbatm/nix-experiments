@@ -8,7 +8,7 @@
 - [x] Implement filesystem sandboxing for macOS (using sandbox-exec)
 - [x] Implement Git-aware session management
 - [x] Create CLI interface with enter command
-- [ ] Add environment caching mechanism
+- [x] Add environment caching mechanism
 - [ ] Add file watching for environment changes
 
 ## Testing
