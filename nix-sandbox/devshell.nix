@@ -4,8 +4,10 @@ pkgs.mkShell {
   packages = [
     pkgs.cargo
     pkgs.clippy
+    pkgs.rustfmt
+  ] ++ (pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.bubblewrap
-  ];
+  ]);
 
   # Add environment variables
   env = { };

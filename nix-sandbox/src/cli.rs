@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Subcommand;
 use tracing::info;
 
+use crate::cache::EnvironmentCache;
 use crate::config::Config;
 use crate::environment::Environment;
 use crate::sandbox::Sandbox;
@@ -65,11 +66,11 @@ pub async fn handle_list() -> Result<()> {
 
 pub async fn handle_clean() -> Result<()> {
     let config = Config::load()?;
+    let cache = EnvironmentCache::new(config);
     
-    info!("Cleaning cache...");
-    std::fs::remove_dir_all(&config.cache_dir)?;
-    std::fs::create_dir_all(&config.cache_dir)?;
-    info!("Cache cleaned");
+    info!("Cleaning stale caches (older than 7 days)...");
+    cache.cleanup_stale_caches(7)?;
+    info!("Cache cleanup completed");
     
     Ok(())
 }

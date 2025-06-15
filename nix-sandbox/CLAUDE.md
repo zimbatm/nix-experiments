@@ -11,8 +11,19 @@ cargo build
 # Build release version
 cargo build --release
 
-# Run tests
+# Run all tests (unit + integration)
 cargo test
+
+# Run integration tests only (19 comprehensive tests)
+cargo test --test integration_sandbox --test integration_git --test integration_isolation
+
+# Run specific integration test suites
+cargo test --test integration_sandbox    # Sandbox creation & functionality (5 tests)
+cargo test --test integration_git        # Git worktree operations (7 tests)  
+cargo test --test integration_isolation  # Platform-specific isolation (7 tests)
+
+# Run NixOS integration tests (VM-based testing)
+nix flake check
 
 # Run with debug logging
 RUST_LOG=debug cargo run -- enter
@@ -64,3 +75,26 @@ All other host filesystem access is denied by default.
 - `tracing` for structured logging
 - Platform-specific `nix` crate features for system calls
 - `bubblewrap` required on Linux systems
+
+## Testing Infrastructure
+
+The project has comprehensive testing across multiple layers:
+
+### Integration Tests (tests/)
+- **19 comprehensive Rust integration tests** covering all major functionality
+- `tests/integration_sandbox.rs` (5 tests): Sandbox creation, environment detection, cache keys
+- `tests/integration_git.rs` (7 tests): Git worktree operations, branch isolation, edge cases
+- `tests/integration_isolation.rs` (7 tests): Platform-specific sandboxing, security boundaries
+- All tests use temporary directories and `serial_test` for isolation
+- Tests automatically build the binary and handle cross-platform differences
+
+### NixOS Integration Tests (checks/)
+- `checks/integration-test.nix`: Basic functionality testing with real Nix environment
+- `checks/vm-test.nix`: Full system testing in isolated NixOS VM with bubblewrap
+- Run with `nix flake check` for complete VM-based validation
+
+### Test Development Notes
+- Integration tests require the binary to be built first (`cargo build --release`)
+- Tests handle missing dependencies gracefully (e.g., bubblewrap on non-Linux systems)
+- Use `RUST_LOG=debug` with test commands for detailed debugging
+- All integration tests pass and provide comprehensive coverage of core functionality

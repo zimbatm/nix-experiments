@@ -32,4 +32,11 @@ pub enum SandboxError {
         binary: String,
         path: PathBuf,
     },
+    
+    #[error("Cache operation '{operation}' failed for {path}: {source}")]
+    CacheError {
+        operation: String,
+        path: PathBuf,
+        source: anyhow::Error,
+    },
 }

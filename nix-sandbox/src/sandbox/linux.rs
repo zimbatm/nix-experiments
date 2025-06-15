@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::collections::HashMap;
 use std::process::Command;
 use std::os::unix::process::CommandExt;
 use tracing::info;
@@ -8,7 +9,7 @@ use crate::environment::Environment;
 use crate::error::SandboxError;
 use crate::session::Session;
 
-pub async fn enter_sandbox(session: &Session, environment: &Environment) -> Result<()> {
+pub async fn enter_sandbox(session: &Session, environment: &Environment, environment_vars: &HashMap<String, String>) -> Result<()> {
     // Check if bubblewrap is installed
     which::which(binaries::BUBBLEWRAP)
         .map_err(|_| SandboxError::SandboxSetupError("bubblewrap (bwrap) is not installed".into()))?;
@@ -92,9 +93,17 @@ pub async fn enter_sandbox(session: &Session, environment: &Environment) -> Resu
     cmd.env(env_vars::USER, sandbox::USER);
     cmd.env(env_vars::TERM, std::env::var(env_vars::TERM).unwrap_or_else(|_| sandbox::DEFAULT_TERM.to_string()));
     
-    // Execute the shell command
-    cmd.args([bubblewrap::COMMAND_SEPARATOR, shell_args[0]]);
-    cmd.args(&shell_args[1..]);
+    // Add cached environment variables
+    for (key, value) in environment_vars {
+        // Skip certain variables that should be handled by the sandbox
+        if !matches!(key.as_str(), "HOME" | "USER" | "TERM" | "PWD") {
+            cmd.env(key, value);
+        }
+    }
+    
+    // Execute the shell command (use bash to ensure proper environment)
+    cmd.args([bubblewrap::COMMAND_SEPARATOR, "/bin/bash", "-c"]);
+    cmd.arg(&shell_command);
     
     // Replace the current process
     Err(cmd.exec().into())

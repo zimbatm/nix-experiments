@@ -6,7 +6,7 @@ use sha2::{Sha256, Digest};
 use crate::constants::{binaries, environment, nix_commands, paths};
 use crate::error::SandboxError;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum EnvironmentType {
     Flake,
     Devenv,
@@ -102,47 +102,43 @@ impl Environment {
     
     pub fn cache_key(&self) -> Result<String> {
         let mut hasher = Sha256::new();
+        self.hash_environment_files(&mut hasher)?;
+        Ok(hex::encode(hasher.finalize()))
+    }
+    
+    /// Hash the environment files (config + lock) into the provided hasher
+    fn hash_environment_files(&self, hasher: &mut Sha256) -> Result<()> {
+        let (config_file, lock_file) = self.get_environment_file_names();
         
-        match self.env_type {
-            EnvironmentType::Flake => {
-                let flake_path = self.project_dir.join(environment::FLAKE_NIX);
-                let lock_path = self.project_dir.join(environment::FLAKE_LOCK);
-                
-                let flake_mtime = std::fs::metadata(&flake_path)?
-                    .modified()?
-                    .duration_since(SystemTime::UNIX_EPOCH)?
-                    .as_secs();
-                hasher.update(flake_mtime.to_le_bytes());
-                
-                if lock_path.exists() {
-                    let lock_mtime = std::fs::metadata(&lock_path)?
-                        .modified()?
-                        .duration_since(SystemTime::UNIX_EPOCH)?
-                        .as_secs();
-                    hasher.update(lock_mtime.to_le_bytes());
-                }
-            }
-            EnvironmentType::Devenv => {
-                let devenv_path = self.project_dir.join(environment::DEVENV_NIX);
-                let lock_path = self.project_dir.join(environment::DEVENV_LOCK);
-                
-                let devenv_mtime = std::fs::metadata(&devenv_path)?
-                    .modified()?
-                    .duration_since(SystemTime::UNIX_EPOCH)?
-                    .as_secs();
-                hasher.update(devenv_mtime.to_le_bytes());
-                
-                if lock_path.exists() {
-                    let lock_mtime = std::fs::metadata(&lock_path)?
-                        .modified()?
-                        .duration_since(SystemTime::UNIX_EPOCH)?
-                        .as_secs();
-                    hasher.update(lock_mtime.to_le_bytes());
-                }
-            }
+        // Hash the main configuration file
+        let config_path = self.project_dir.join(config_file);
+        self.hash_file_mtime(&config_path, hasher)?;
+        
+        // Hash the lock file if it exists
+        let lock_path = self.project_dir.join(lock_file);
+        if lock_path.exists() {
+            self.hash_file_mtime(&lock_path, hasher)?;
         }
         
-        Ok(hex::encode(hasher.finalize()))
+        Ok(())
+    }
+    
+    /// Get the config and lock file names for this environment type
+    fn get_environment_file_names(&self) -> (&'static str, &'static str) {
+        match self.env_type {
+            EnvironmentType::Flake => (environment::FLAKE_NIX, environment::FLAKE_LOCK),
+            EnvironmentType::Devenv => (environment::DEVENV_NIX, environment::DEVENV_LOCK),
+        }
+    }
+    
+    /// Hash the modification time of a file into the provided hasher
+    fn hash_file_mtime(&self, file_path: &Path, hasher: &mut Sha256) -> Result<()> {
+        let mtime = std::fs::metadata(file_path)?
+            .modified()?
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs();
+        hasher.update(mtime.to_le_bytes());
+        Ok(())
     }
 }
 
@@ -201,5 +197,86 @@ mod tests {
         let key2 = env2.cache_key().unwrap();
         
         assert_ne!(key1, key2);
+    }
+    
+    #[test]
+    fn test_get_environment_file_names_flake() {
+        let temp_dir = TempDir::new().unwrap();
+        let flake_path = temp_dir.path().join(environment::FLAKE_NIX);
+        fs::write(&flake_path, "{}").unwrap();
+        
+        let env = Environment::detect(temp_dir.path()).unwrap();
+        let (config_file, lock_file) = env.get_environment_file_names();
+        
+        assert_eq!(config_file, environment::FLAKE_NIX);
+        assert_eq!(lock_file, environment::FLAKE_LOCK);
+    }
+    
+    #[test]
+    fn test_get_environment_file_names_devenv() {
+        let temp_dir = TempDir::new().unwrap();
+        let devenv_path = temp_dir.path().join(environment::DEVENV_NIX);
+        fs::write(&devenv_path, "{}").unwrap();
+        
+        let env = Environment::detect(temp_dir.path()).unwrap();
+        let (config_file, lock_file) = env.get_environment_file_names();
+        
+        assert_eq!(config_file, environment::DEVENV_NIX);
+        assert_eq!(lock_file, environment::DEVENV_LOCK);
+    }
+    
+    #[test]
+    fn test_cache_key_includes_lock_file_when_present() {
+        let temp_dir = TempDir::new().unwrap();
+        let flake_path = temp_dir.path().join(environment::FLAKE_NIX);
+        let lock_path = temp_dir.path().join(environment::FLAKE_LOCK);
+        
+        // Create environment without lock file
+        fs::write(&flake_path, "{}").unwrap();
+        let env1 = Environment::detect(temp_dir.path()).unwrap();
+        let key1 = env1.cache_key().unwrap();
+        
+        // Add lock file
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        fs::write(&lock_path, "{}").unwrap();
+        let env2 = Environment::detect(temp_dir.path()).unwrap();
+        let key2 = env2.cache_key().unwrap();
+        
+        // Keys should be different when lock file is added
+        assert_ne!(key1, key2);
+    }
+    
+    #[test]
+    fn test_cache_key_consistent_for_unchanged_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let flake_path = temp_dir.path().join(environment::FLAKE_NIX);
+        let lock_path = temp_dir.path().join(environment::FLAKE_LOCK);
+        
+        fs::write(&flake_path, "{}").unwrap();
+        fs::write(&lock_path, "{}").unwrap();
+        
+        let env1 = Environment::detect(temp_dir.path()).unwrap();
+        let key1 = env1.cache_key().unwrap();
+        
+        let env2 = Environment::detect(temp_dir.path()).unwrap();
+        let key2 = env2.cache_key().unwrap();
+        
+        // Keys should be identical for unchanged files
+        assert_eq!(key1, key2);
+    }
+    
+    #[test]
+    fn test_hash_file_mtime_error_handling() {
+        let temp_dir = TempDir::new().unwrap();
+        let flake_path = temp_dir.path().join(environment::FLAKE_NIX);
+        fs::write(&flake_path, "{}").unwrap();
+        
+        let env = Environment::detect(temp_dir.path()).unwrap();
+        let nonexistent_path = temp_dir.path().join("nonexistent.nix");
+        let mut hasher = Sha256::new();
+        
+        // Should return error for nonexistent file
+        let result = env.hash_file_mtime(&nonexistent_path, &mut hasher);
+        assert!(result.is_err());
     }
 }

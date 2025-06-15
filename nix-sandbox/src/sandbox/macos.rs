@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::collections::HashMap;
 use std::process::Command;
 use std::os::unix::process::CommandExt;
 use tempfile::NamedTempFile;
@@ -9,7 +10,7 @@ use crate::constants::{binaries, devices, env_vars, filesystem, macos_sandbox, p
 use crate::environment::Environment;
 use crate::session::Session;
 
-pub async fn enter_sandbox(session: &Session, environment: &Environment) -> Result<()> {
+pub async fn enter_sandbox(session: &Session, environment: &Environment, environment_vars: &HashMap<String, String>) -> Result<()> {
     let project_dir = session.project_dir();
     let shell_command = environment.shell_command();
     let shell_args: Vec<&str> = shell_command.split_whitespace().collect();
@@ -98,9 +99,16 @@ pub async fn enter_sandbox(session: &Session, environment: &Environment) -> Resu
     cmd.env(env_vars::USER, sandbox::USER);
     cmd.env(env_vars::TERM, std::env::var(env_vars::TERM).unwrap_or_else(|_| sandbox::DEFAULT_TERM.to_string()));
     
-    // Add shell command
-    cmd.arg(shell_args[0]);
-    cmd.args(&shell_args[1..]);
+    // Add cached environment variables
+    for (key, value) in environment_vars {
+        // Skip certain variables that should be handled by the sandbox
+        if !matches!(key.as_str(), "HOME" | "USER" | "TERM" | "PWD") {
+            cmd.env(key, value);
+        }
+    }
+    
+    // Add shell command (use bash to ensure proper environment)
+    cmd.args(["/bin/bash", "-c", &shell_command]);
     
     // Replace the current process
     Err(cmd.exec().into())

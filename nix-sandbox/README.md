@@ -71,12 +71,59 @@ The sandbox denies all host access by default, only allowing:
 ## Development
 
 ```bash
-# Run tests
+# Build the project
+cargo build --release
+
+# Run all tests (unit + integration)
 cargo test
+
+# Run integration tests only (19 comprehensive tests)
+cargo test --test integration_sandbox --test integration_git --test integration_isolation
+
+# Run specific integration test suites
+cargo test --test integration_sandbox    # Sandbox creation & functionality (5 tests)
+cargo test --test integration_git        # Git worktree operations (7 tests)  
+cargo test --test integration_isolation  # Platform-specific isolation (7 tests)
+
+# Run NixOS integration tests (VM-based testing)
+nix flake check
 
 # Run with logging
 RUST_LOG=debug cargo run -- enter
+
+# Check code quality
+cargo clippy
 ```
+
+### Integration Test Coverage
+
+The project includes multiple test layers:
+
+**Rust Integration Tests** (19 tests):
+- **Sandbox Creation** (`tests/integration_sandbox.rs`):
+  - Basic functionality (list, clean commands)
+  - Environment detection (flake.nix, devenv.nix)
+  - Cache key generation and invalidation
+  - Error handling for missing environments
+  - Linux-specific isolation with bubblewrap
+
+- **Git Operations** (`tests/integration_git.rs`):
+  - Multi-branch repository setup and switching
+  - Branch-specific environment isolation
+  - Named session support with worktrees
+  - Git cleanup operations
+  - Edge cases (non-git repos, detached HEAD)
+
+- **Security Isolation** (`tests/integration_isolation.rs`):
+  - Platform-specific sandboxing (Linux/macOS)
+  - Filesystem access validation
+  - Environment variable handling
+  - Network accessibility testing
+  - Concurrent sandbox operations
+
+**NixOS Integration Tests** (`checks/`):
+- **Basic Integration** (`integration-test.nix`): Tests binary functionality with real Nix environment
+- **VM Testing** (`vm-test.nix`): Full system testing in isolated NixOS VM with bubblewrap
 
 ## License
 
