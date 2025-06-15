@@ -23,6 +23,7 @@ cargo test --test integration_git        # Git worktree operations (7 tests)
 cargo test --test integration_isolation  # Platform-specific isolation (7 tests)
 
 # Run NixOS integration tests (VM-based testing)
+# Run `nix flake check -L` instead to get better logs
 nix flake check
 
 # Run with debug logging
@@ -37,6 +38,13 @@ nix develop
 # Run cargo test and clippy to verify code quality
 cargo test
 cargo clippy
+
+# Format code with nix formatter
+nix fmt
+
+# Run full Nix flake checks (includes VM tests)
+# Note: This requires the binary to be built in the Nix store
+nix flake check
 ```
 
 ## Architecture Overview

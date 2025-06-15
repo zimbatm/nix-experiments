@@ -8,8 +8,8 @@ use tracing::info;
 
 use crate::constants::{binaries, devices, env_vars, filesystem, macos_sandbox, paths};
 use crate::environment::Environment;
-use crate::session::Session;
 use crate::sandbox::prepare_sandbox_env_vars;
+use crate::session::Session;
 
 pub async fn enter_sandbox(
     session: &Session,

@@ -7,8 +7,8 @@ use tracing::info;
 use crate::constants::{binaries, bubblewrap, devices, env_vars, filesystem, paths, sandbox};
 use crate::environment::Environment;
 use crate::error::SandboxError;
-use crate::session::Session;
 use crate::sandbox::prepare_sandbox_env_vars;
+use crate::session::Session;
 
 pub async fn enter_sandbox(
     session: &Session,
@@ -76,11 +76,7 @@ pub async fn enter_sandbox(
     ]);
 
     // Bind mount entire /nix directory (writable for daemon socket and temp files)
-    cmd.args([
-        bubblewrap::BIND,
-        "/nix",
-        "/nix",
-    ]);
+    cmd.args([bubblewrap::BIND, "/nix", "/nix"]);
 
     // Bind mount system Nix configuration (read-only)
     // This exposes /etc/nix with system-wide Nix settings like nix.conf
@@ -116,7 +112,8 @@ pub async fn enter_sandbox(
 
     // Execute the shell command (use bash to ensure proper environment)
     // Get bash from the Nix environment or fall back to system bash
-    let bash_path = environment_vars.get("BASH")
+    let bash_path = environment_vars
+        .get("BASH")
         .and_then(|path| {
             if std::path::Path::new(path).exists() {
                 Some(path.as_str())
@@ -135,7 +132,7 @@ pub async fn enter_sandbox(
                 "/bin/bash"
             }
         });
-    
+
     cmd.args([bubblewrap::COMMAND_SEPARATOR, bash_path, "-c"]);
     cmd.arg(&shell_command);
 
@@ -160,7 +157,10 @@ pub async fn exec_in_sandbox(
 
     let project_dir = session.project_dir();
 
-    info!("Using bubblewrap to execute command: {} {:?}", command, args);
+    info!(
+        "Using bubblewrap to execute command: {} {:?}",
+        command, args
+    );
 
     // Build bubblewrap command
     let mut cmd = Command::new(&bwrap_path);
@@ -196,11 +196,7 @@ pub async fn exec_in_sandbox(
     cmd.args([bubblewrap::TMPFS, filesystem::TMP_DIR]);
 
     // Mount /nix/store read-only
-    cmd.args([
-        bubblewrap::RO_BIND,
-        paths::NIX_STORE,
-        paths::NIX_STORE,
-    ]);
+    cmd.args([bubblewrap::RO_BIND, paths::NIX_STORE, paths::NIX_STORE]);
 
     // Mount nix daemon socket if it exists
     let nix_daemon_socket = std::path::Path::new(paths::NIX_DAEMON_SOCKET);
@@ -239,10 +235,7 @@ pub async fn exec_in_sandbox(
     if user_nix_config.exists() {
         // Create parent directory
         if let Some(parent) = user_nix_config.parent() {
-            cmd.args([
-                bubblewrap::DIR,
-                &parent.to_string_lossy(),
-            ]);
+            cmd.args([bubblewrap::DIR, &parent.to_string_lossy()]);
             cmd.args([
                 bubblewrap::RO_BIND,
                 &user_nix_config.to_string_lossy(),

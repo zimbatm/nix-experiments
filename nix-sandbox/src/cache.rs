@@ -54,11 +54,14 @@ impl EnvironmentCache {
         path: &Path,
         result: Result<T, E>,
     ) -> Result<T> {
-        result.map_err(|e| SandboxError::CacheError {
-            operation: operation.to_string(),
-            path: path.to_path_buf(),
-            source: e.into(),
-        }.into())
+        result.map_err(|e| {
+            SandboxError::CacheError {
+                operation: operation.to_string(),
+                path: path.to_path_buf(),
+                source: e.into(),
+            }
+            .into()
+        })
     }
 
     pub fn get_cache_dir(&self, cache_key: &str) -> PathBuf {

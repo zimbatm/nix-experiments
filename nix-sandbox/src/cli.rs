@@ -56,7 +56,7 @@ fn setup_sandbox(session_name: Option<String>) -> Result<(Config, Session, Envir
 
 pub async fn handle_enter(session_name: Option<String>) -> Result<()> {
     let (_config, session, _env, sandbox) = setup_sandbox(session_name)?;
-    
+
     info!("Entering sandbox for: {}", session.project_dir().display());
     sandbox.enter().await?;
 
@@ -69,7 +69,7 @@ pub async fn handle_exec(
     args: Vec<String>,
 ) -> Result<()> {
     let (_config, _session, _env, sandbox) = setup_sandbox(session_name)?;
-    
+
     info!("Executing in sandbox: {} {:?}", command, args);
     sandbox.exec(command, args).await?;
 

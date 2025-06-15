@@ -20,17 +20,20 @@ pub fn prepare_sandbox_env_vars(
     cached_env_vars: &HashMap<String, String>,
 ) -> HashMap<String, String> {
     use crate::constants::{env_vars, sandbox};
-    
+
     let mut env_vars = HashMap::new();
-    
+
     // Set basic sandbox environment
-    env_vars.insert(env_vars::HOME.to_string(), project_dir.to_string_lossy().to_string());
+    env_vars.insert(
+        env_vars::HOME.to_string(),
+        project_dir.to_string_lossy().to_string(),
+    );
     env_vars.insert(env_vars::USER.to_string(), sandbox::USER.to_string());
     env_vars.insert(
         env_vars::TERM.to_string(),
         std::env::var(env_vars::TERM).unwrap_or_else(|_| sandbox::DEFAULT_TERM.to_string()),
     );
-    
+
     // Add cached environment variables
     for (key, value) in cached_env_vars {
         // Skip certain variables that should be handled by the sandbox
@@ -43,7 +46,7 @@ pub fn prepare_sandbox_env_vars(
             env_vars.insert(key.clone(), value.to_string());
         }
     }
-    
+
     env_vars
 }
 
@@ -106,12 +109,26 @@ impl Sandbox {
 
         #[cfg(target_os = "linux")]
         {
-            linux::exec_in_sandbox(&self.session, &self.environment, &environment_vars, command, args).await
+            linux::exec_in_sandbox(
+                &self.session,
+                &self.environment,
+                &environment_vars,
+                command,
+                args,
+            )
+            .await
         }
 
         #[cfg(target_os = "macos")]
         {
-            macos::exec_in_sandbox(&self.session, &self.environment, &environment_vars, command, args).await
+            macos::exec_in_sandbox(
+                &self.session,
+                &self.environment,
+                &environment_vars,
+                command,
+                args,
+            )
+            .await
         }
 
         #[cfg(not(any(target_os = "linux", target_os = "macos")))]
@@ -189,7 +206,7 @@ impl Sandbox {
         if output.trim_start().starts_with('{') {
             // Parse JSON format
             let json: serde_json::Value = serde_json::from_str(output)?;
-            
+
             if let Some(variables) = json.get("variables").and_then(|v| v.as_object()) {
                 for (key, var_obj) in variables {
                     if let Some(value) = var_obj.get("value").and_then(|v| v.as_str()) {
