@@ -63,27 +63,27 @@ func (dg *DependencyGraph) Build(root string) error {
 	return nil
 }
 
-// FindPathToRoot finds the path from target to root
+// FindPathToRoot finds the dependency chain from target to root
 func (dg *DependencyGraph) FindPathToRoot(target string) []string {
-	var pathChain []string
+	var closureChain []string
 
 	current := target
 	for current != "" {
-		pathChain = append(pathChain, current)
+		closureChain = append(closureChain, current)
 		current = dg.parents[current]
 	}
 
 	// Reverse the chain
-	for i, j := 0, len(pathChain)-1; i < j; i, j = i+1, j-1 {
-		pathChain[i], pathChain[j] = pathChain[j], pathChain[i]
+	for i, j := 0, len(closureChain)-1; i < j; i, j = i+1, j-1 {
+		closureChain[i], closureChain[j] = closureChain[j], closureChain[i]
 	}
 
-	log.Println("Path from Root to target found:")
-	for _, p := range pathChain {
+	log.Println("Dependency chain from root to target:")
+	for _, p := range closureChain {
 		fmt.Fprintln(os.Stderr, p)
 	}
 
-	return pathChain
+	return closureChain
 }
 
 // Run executes the patch operation on a Nix store path
@@ -91,13 +91,13 @@ func Run(cfg *config.Config) error {
 	targetPath := cfg.Path
 
 	// Check that the given path is in the /nix/store
-	if !store.IsStorePath(path) {
+	if !store.IsStorePath(targetPath) {
 		// Try to resolve symlink
-		resolvedPath, err := filepath.EvalSymlinks(path)
+		resolvedPath, err := filepath.EvalSymlinks(targetPath)
 		if err != nil || !store.IsStorePath(resolvedPath) {
-			return fmt.Errorf("%s is not in the /nix/store", path)
+			return fmt.Errorf("%s is not in the /nix/store", targetPath)
 		}
-		path = resolvedPath
+		targetPath = resolvedPath
 	}
 
 	// Detect or use override for system type
@@ -130,13 +130,13 @@ func Run(cfg *config.Config) error {
 	}
 
 	// Check that the given path is part of the system closure
-	cmd := exec.Command("nix", "why-depends", systemClosure, path)
+	cmd := exec.Command("nix", "why-depends", systemClosure, targetPath)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("path is not part of system closure: %w", err)
 	}
 
 	// Split the path into store_path and file_path
-	parts := strings.SplitN(path, "/", 5)
+	parts := strings.SplitN(targetPath, "/", 5)
 	storePath := strings.Join(parts[:4], "/")
 	filePath := ""
 	if len(parts) > 4 {
@@ -209,11 +209,11 @@ func Run(cfg *config.Config) error {
 		return fmt.Errorf("failed to build dependency graph: %w", err)
 	}
 
-	// Find path from store path to root
-	pathChain := dg.FindPathToRoot(storePath)
+	// Find dependency chain from store path to root
+	closureChain := dg.FindPathToRoot(storePath)
 
 	log.Printf("store_path=%s", storePath)
-	log.Printf("path_chain=%s", strings.Join(pathChain, " "))
+	log.Printf("closure_chain=%s", strings.Join(closureChain, " "))
 
 	// Create rewrite engine
 	engine := rewrite.NewEngine()

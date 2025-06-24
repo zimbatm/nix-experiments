@@ -33,11 +33,11 @@ func (p *Profile) GetClosurePath() (string, error) {
 	return closurePath, nil
 }
 
-// TestConfiguration tests a new system configuration
+// TestConfiguration tests a new closure path
 func (p *Profile) TestConfiguration(closurePath string) error {
 	// For custom profiles, we just verify the path exists
 	if _, err := os.Stat(closurePath); err != nil {
-		return fmt.Errorf("profile path does not exist: %w", err)
+		return fmt.Errorf("closure path does not exist: %w", err)
 	}
 	return nil
 }
