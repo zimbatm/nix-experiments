@@ -24,6 +24,12 @@ func TestExtractNAR(t *testing.T) {
 	if err := os.Mkdir(testDir, 0755); err != nil {
 		t.Fatalf("Failed to create test dir: %v", err)
 	}
+	
+	// Create a read-only subdirectory to test permission preservation
+	readOnlyDir := filepath.Join(srcDir, "readonly")
+	if err := os.Mkdir(readOnlyDir, 0555); err != nil {
+		t.Fatalf("Failed to create read-only dir: %v", err)
+	}
 
 	execFile := filepath.Join(testDir, "exec.sh")
 	if err := os.WriteFile(execFile, []byte("#!/bin/sh\necho test"), 0755); err != nil {
@@ -43,6 +49,21 @@ func TestExtractNAR(t *testing.T) {
 
 	// Extract NAR to new location
 	destDir := t.TempDir()
+	
+	// Ensure cleanup can happen by making directories writable on cleanup
+	t.Cleanup(func() {
+		filepath.Walk(destDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			// Make all directories writable for cleanup
+			if info.IsDir() {
+				os.Chmod(path, 0755)
+			}
+			return nil
+		})
+	})
+	
 	if err := nar.Extract(narBuf.Bytes(), destDir, nar.ExtractOptions{PreserveMode: true}); err != nil {
 		t.Fatalf("extractNAR failed: %v", err)
 	}

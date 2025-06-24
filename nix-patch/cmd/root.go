@@ -10,6 +10,7 @@ import (
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/patch"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/system"
 )
 
 // Execute runs the main command
@@ -26,16 +27,14 @@ func Execute() error {
 	flag.StringVar(&cfg.ProfilePath, "profile", "", "path to custom profile (defaults to user profile when using -system=profile)")
 	flag.StringVar(&cfg.ActivationCommand, "activate", "", "custom activation command (e.g., 'nixos-rebuild switch')")
 
-	flag.Usage = func() {
-		showUsage()
-	}
+	flag.Usage = showUsage
 
 	flag.Parse()
 
 	// Get positional arguments
 	args := flag.Args()
 	if len(args) != 1 {
-		showUsage()
+		flag.Usage()
 		return errors.New(errors.ErrCodeConfig, "parse", "exactly one path argument required")
 	}
 
@@ -67,31 +66,29 @@ func Execute() error {
 }
 
 func showUsage() {
+	// Detect current system
+	detectedSystem := "unknown"
+	defaultClosure := ""
+	if sys, err := system.Detect(); err == nil {
+		detectedSystem = string(sys.Type())
+		// Get the closure path from the detected system
+		if closurePath, err := sys.GetClosurePath(); err == nil {
+			defaultClosure = closurePath
+		}
+	}
+
 	fmt.Fprintf(os.Stderr, `nix-store-edit - Edit files in the Nix store
 
 Usage:
-  %s [options] <path>    Edit a path in the Nix store
+  %s [options] <path>
+
+Current System: %s
+Default Closure: %s
 
 Options:
-  -editor string    Editor to use (default: $EDITOR or vim)
-  -timeout duration Operation timeout (default: 2m)
-  -dry-run         Preview changes without applying
-  -verbose         Enable verbose logging
-  -force           Force operation even if risky
-  -system string   Override detected system type (nixos, nix-darwin, home-manager, system-manager, profile)
-  -profile string  Path to custom profile (defaults to user profile when using -system=profile)
-  -activate string Custom activation command (e.g., 'nixos-rebuild switch')
-  -h, -help        Show this help
-
-Environment:
-  EDITOR        The editor to use (default: vim)
-
-Description:
-  Opens the path in a mutable buffer in your editor. When editing is finished,
-  add the new content to the store, and rewrite your system closure recursively
-  with it. By default, uses safe test commands where available (nixos-rebuild test, 
-  darwin-rebuild check) or switch commands (home-manager switch).
-
+`, os.Args[0], detectedSystem, defaultClosure)
+	flag.PrintDefaults()
+	fmt.Fprintf(os.Stderr, `
 Examples:
   # Edit a binary in the store
   %s /nix/store/...-vim-9.0/bin/vim
@@ -101,9 +98,6 @@ Examples:
 
   # Edit a specific profile
   %s --system=profile --profile=/nix/var/nix/profiles/system /nix/store/...-config/etc/config.conf
-
-  # Use custom activation command (override default test to switch)
-  %s --activate="nixos-rebuild switch" /nix/store/...-config/etc/config.conf
-
-`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0])
+`, os.Args[0], os.Args[0], os.Args[0])
 }
+

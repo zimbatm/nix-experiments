@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/archive"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
@@ -52,6 +54,147 @@ func (dg *DependencyGraph) Build(root string) error {
 		if err != nil {
 			// Path might not have references
 			continue
+		}
+
+		for _, ref := range refs {
+			dg.parents[ref] = path
+			queue = append(queue, ref)
+		}
+	}
+
+	return nil
+}
+
+// BuildParallel builds a dependency graph from root using parallel processing
+func (dg *DependencyGraph) BuildParallel(root string, workers int) error {
+	if workers <= 0 {
+		workers = 4 // Default number of workers
+	}
+
+	visited := make(map[string]bool)
+	visitedMu := &sync.Mutex{}
+	parentsMu := &sync.Mutex{}
+
+	// Work items channel
+	workCh := make(chan string, 1000)
+	var wg sync.WaitGroup
+
+	// Track active workers
+	var activeWorkers int32
+	atomic.StoreInt32(&activeWorkers, int32(workers))
+	activeMu := &sync.Mutex{}
+	activeCond := sync.NewCond(activeMu)
+
+	// Start workers
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case path, ok := <-workCh:
+					if !ok {
+						return
+					}
+					
+					// Decrement active counter when starting work
+					atomic.AddInt32(&activeWorkers, -1)
+
+					// Process the path
+					visitedMu.Lock()
+					if visited[path] {
+						visitedMu.Unlock()
+						// Increment active counter when done
+						atomic.AddInt32(&activeWorkers, 1)
+						activeMu.Lock()
+						activeCond.Signal()
+						activeMu.Unlock()
+						continue
+					}
+					visited[path] = true
+					visitedMu.Unlock()
+
+					log.Printf("path=%s", path)
+
+					// Get references
+					refs, err := store.QueryReferences(path)
+					if err != nil {
+						// Path might not have references
+						// Increment active counter when done
+						atomic.AddInt32(&activeWorkers, 1)
+						activeMu.Lock()
+						activeCond.Signal()
+						activeMu.Unlock()
+						continue
+					}
+
+					// Update parents and queue new work
+					parentsMu.Lock()
+					for _, ref := range refs {
+						dg.parents[ref] = path
+						select {
+						case workCh <- ref:
+						default:
+							// Channel full, will retry
+							go func(r string) {
+								workCh <- r
+							}(ref)
+						}
+					}
+					parentsMu.Unlock()
+
+					// Increment active counter when done
+					activeMu.Lock()
+					activeWorkers++
+					activeCond.Signal()
+					activeMu.Unlock()
+				}
+			}
+		}()
+	}
+
+	// Start with root
+	workCh <- root
+
+	// Wait for all work to complete
+	activeMu.Lock()
+	for len(workCh) > 0 || atomic.LoadInt32(&activeWorkers) < int32(workers) {
+		activeCond.Wait()
+	}
+	activeMu.Unlock()
+
+	close(workCh)
+	wg.Wait()
+
+	return nil
+}
+
+// BuildWithCache builds a dependency graph from root using a reference cache
+func (dg *DependencyGraph) BuildWithCache(root string, cache map[string][]string) error {
+	visited := make(map[string]bool)
+	queue := []string{root}
+
+	for len(queue) > 0 {
+		path := queue[0]
+		queue = queue[1:]
+
+		if visited[path] {
+			continue
+		}
+		visited[path] = true
+
+		// Check cache first
+		refs, cached := cache[path]
+		if !cached {
+			log.Printf("path=%s", path)
+			// Get references
+			var err error
+			refs, err = store.QueryReferences(path)
+			if err != nil {
+				// Path might not have references
+				continue
+			}
+			cache[path] = refs
 		}
 
 		for _, ref := range refs {
@@ -123,17 +266,16 @@ func Run(cfg *config.Config) error {
 	}
 	defer workspace.cleanup()
 
-	// Step 6: Handle dry-run diff display
-	if cfg.DryRun {
-		showDryRunDiff(workspace.compareOldPath, workspace.compareNewPath)
-		return nil
-	}
+	// Step 6: Show diff of changes
+	showDiff(workspace.compareOldPath, workspace.compareNewPath)
 
 	// Step 7: Build dependency graph
+	log.Println("Building dependency graph...")
 	_, closureChain, err := buildDependencyChain(systemClosure, pathComponents.storePath)
 	if err != nil {
 		return err
 	}
+	log.Println("Dependency graph built successfully")
 
 	log.Printf("store_path=%s", pathComponents.storePath)
 	log.Printf("closure_chain=%s", strings.Join(closureChain, " "))
@@ -353,21 +495,21 @@ func createAndEditWorkspace(cfg *config.Config, pc *pathComponents) (*workspace,
 	return w, true, nil
 }
 
-// showDryRunDiff displays the diff for dry-run mode
-func showDryRunDiff(oldPath, newPath string) {
-	log.Println("DRY-RUN MODE: Showing changes that would be applied:")
+// showDiff displays the diff between old and new paths
+func showDiff(oldPath, newPath string) {
+	log.Println("Changes to be applied:")
 	cmd := exec.Command("diff", "--recursive", "--unified", oldPath, newPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	_ = cmd.Run() // Ignore error as diff returns non-zero when files differ
-
-	log.Println("\nDRY-RUN MODE: No changes were applied to the system.")
 }
 
 // buildDependencyChain builds the dependency graph and finds the closure chain
 func buildDependencyChain(systemClosure, storePath string) (*DependencyGraph, []string, error) {
 	dg := NewDependencyGraph()
-	if err := dg.Build(systemClosure); err != nil {
+	
+	// Use parallel building with 8 workers for better performance
+	if err := dg.BuildParallel(systemClosure, 8); err != nil {
 		return nil, nil, fmt.Errorf("failed to build dependency graph: %w", err)
 	}
 
