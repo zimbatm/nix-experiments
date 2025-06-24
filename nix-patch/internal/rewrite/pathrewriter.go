@@ -4,14 +4,14 @@ package rewrite
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/nix-community/go-nix/pkg/nar"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/archive"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/constants"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/nar"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
@@ -26,11 +26,15 @@ func (e *Engine) rewritePath(path string) (string, error) {
 	log.Printf("Rewriting path: %s", path)
 
 	// Create a temporary directory for extraction
-	tempDir, err := os.MkdirTemp("", "nix-patch-rewrite-*")
+	tempDir, err := os.MkdirTemp("", constants.RewriteTempDirPrefix)
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			log.Printf("Failed to clean up temp directory: %v", err)
+		}
+	}()
 
 	// Extract the path contents
 	extractPath := filepath.Join(tempDir, "contents")
@@ -62,7 +66,7 @@ func (e *Engine) extractPath(storePath, destDir string) error {
 	}
 
 	// Extract NAR to destination with writable permissions
-	if err := extractNARWritable(bytes.NewReader(narData), destDir); err != nil {
+	if err := nar.Extract(narData, destDir, nar.ExtractOptions{MakeWritable: true}); err != nil {
 		return fmt.Errorf("failed to extract NAR: %w", err)
 	}
 
@@ -204,7 +208,7 @@ func (e *Engine) createNewStorePath(originalPath, contentsPath string) (string, 
 			return "", fmt.Errorf("failed to parse original path: %w", err)
 		}
 
-		newPath := fmt.Sprintf("/nix/store/%s-%s", hash, pathInfo.Name)
+		newPath := fmt.Sprintf("%s/%s-%s", constants.NixStore, hash, pathInfo.Name)
 		log.Printf("DRY-RUN: Would create new store path: %s", newPath)
 		return newPath, nil
 	}
@@ -233,98 +237,3 @@ type FileInfo struct {
 	Mode      os.FileMode
 }
 
-// extractNARWritable extracts a NAR archive to the specified directory with writable permissions
-func extractNARWritable(narReader io.Reader, destDir string) error {
-	return extractNARWithMode(narReader, destDir, true)
-}
-
-// extractNAR extracts a NAR archive to the specified directory preserving original permissions
-func extractNAR(narReader io.Reader, destDir string) error {
-	return extractNARWithMode(narReader, destDir, false)
-}
-
-// extractNARWithMode extracts a NAR archive with optional write permission adjustment
-func extractNARWithMode(narReader io.Reader, destDir string, makeWritable bool) error {
-	// Create NAR reader
-	nr, err := nar.NewReader(narReader)
-	if err != nil {
-		return fmt.Errorf("failed to create NAR reader: %w", err)
-	}
-	defer nr.Close()
-
-	// Process each entry in the NAR
-	for {
-		hdr, err := nr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read NAR header: %w", err)
-		}
-
-		// Skip the root entry "/"
-		if hdr.Path == "/" {
-			continue
-		}
-
-		// Remove leading slash for joining with destDir
-		relPath := strings.TrimPrefix(hdr.Path, "/")
-		destPath := filepath.Join(destDir, relPath)
-
-		switch hdr.Type {
-		case nar.TypeDirectory:
-			// Create directory with writable permissions
-			if err := os.MkdirAll(destPath, 0755); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", destPath, err)
-			}
-
-		case nar.TypeRegular:
-			// Ensure parent directory exists
-			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-				return fmt.Errorf("failed to create parent directory: %w", err)
-			}
-
-			// Determine file mode
-			mode := os.FileMode(0644)
-			if hdr.Executable {
-				mode = 0755
-			}
-
-			// If makeWritable is true, ensure owner write permission
-			if makeWritable {
-				mode |= 0200
-			}
-
-			f, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
-			if err != nil {
-				return fmt.Errorf("failed to create file %s: %w", destPath, err)
-			}
-
-			// Copy content
-			if _, err := io.Copy(f, nr); err != nil {
-				f.Close()
-				return fmt.Errorf("failed to write file %s: %w", destPath, err)
-			}
-			f.Close()
-
-		case nar.TypeSymlink:
-			// Ensure parent directory exists
-			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-				return fmt.Errorf("failed to create parent directory: %w", err)
-			}
-
-			// Remove existing symlink if any
-			os.Remove(destPath)
-
-			// Create symlink
-			if err := os.Symlink(hdr.LinkTarget, destPath); err != nil {
-				return fmt.Errorf("failed to create symlink %s -> %s: %w", destPath, hdr.LinkTarget, err)
-			}
-
-		default:
-			return fmt.Errorf("unknown NAR entry type: %v", hdr.Type)
-		}
-	}
-
-	return nil
-}

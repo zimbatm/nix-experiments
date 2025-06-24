@@ -9,6 +9,7 @@ import (
 	"github.com/nix-community/go-nix/pkg/nar"
 	"github.com/nix-community/go-nix/pkg/wire"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/constants"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
@@ -97,7 +98,7 @@ func CreateWithRewrites(oldPath, pathToAdd string, rewrites map[string]string) (
 		return nil, fmt.Errorf("invalid store path: %w", err)
 	}
 
-	newPath := fmt.Sprintf("/nix/store/%s-%s", newHash, sp.Name)
+	newPath := fmt.Sprintf("%s/%s-%s", constants.NixStore, newHash, sp.Name)
 
 	// Record the rewrite
 	rewrites[oldPath] = newPath

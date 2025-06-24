@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/constants"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
@@ -70,7 +71,7 @@ func (c *StoreCache) GetNARData(path string) ([]byte, error) {
 	}
 
 	// Cache the result (be careful with memory usage)
-	if len(data) < 10*1024*1024 { // Only cache if < 10MB
+	if len(data) < constants.MaxCacheSize { // Only cache if < MaxCacheSize
 		c.mu.Lock()
 		c.narData[path] = cacheEntry{
 			data:      data,

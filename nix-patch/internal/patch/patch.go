@@ -2,9 +2,7 @@
 package patch
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -12,9 +10,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nix-community/go-nix/pkg/nar"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/archive"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/constants"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/nar"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/rewrite"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/system"
@@ -89,164 +88,54 @@ func (dg *DependencyGraph) FindPathToRoot(target string) []string {
 
 // Run executes the patch operation on a Nix store path
 func Run(cfg *config.Config) error {
-	targetPath := cfg.Path
-
-	// Check that the given path is in the /nix/store
-	if !store.IsStorePath(targetPath) {
-		// Try to resolve symlink
-		resolvedPath, err := filepath.EvalSymlinks(targetPath)
-		if err != nil || !store.IsStorePath(resolvedPath) {
-			return fmt.Errorf("%s is not in the /nix/store", targetPath)
-		}
-		targetPath = resolvedPath
-	}
-
-	// Detect or use override for system type
-	var sys system.System
-	var err error
-	if cfg.SystemType != "" {
-		// Use the system type override
-		sys, err = system.GetSystemByType(cfg.SystemType, cfg.ProfilePath)
-		if err != nil {
-			return fmt.Errorf("invalid system type: %w", err)
-		}
-		log.Printf("Using system type override: %s", sys.Type())
-	} else {
-		// Auto-detect system type
-		sys, err = system.Detect()
-		if err != nil {
-			return fmt.Errorf("failed to detect system type: %w", err)
-		}
-		if sys.Type() == system.TypeProfile {
-			log.Printf("No specific system detected, using user profile")
-		} else {
-			log.Printf("Detected system type: %s", sys.Type())
-		}
-	}
-
-	// Get system closure
-	systemClosure, err := sys.GetClosurePath()
+	// Step 1: Validate and resolve target path
+	targetPath, err := validateTargetPath(cfg.Path)
 	if err != nil {
-		return fmt.Errorf("failed to get system closure: %w", err)
+		return err
 	}
 
-	// Check that the given path is part of the system closure
-	cmd := exec.Command("nix", "why-depends", systemClosure, targetPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("path is not part of system closure: %w", err)
-	}
-
-	// Check if targetPath is a file or directory
-	targetInfo, err := os.Stat(targetPath)
+	// Step 2: Detect or override system type
+	sys, err := detectOrOverrideSystem(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to stat target path: %w", err)
+		return err
 	}
 
-	// Split the path into store_path and file_path
-	parts := strings.SplitN(targetPath, "/", 5)
-	var storePath, filePath string
-	var drvName string
-	
-	if targetInfo.IsDir() || len(parts) > 4 {
-		// If it's a directory or has subdirectories, use the standard logic
-		storePath = strings.Join(parts[:4], "/")
-		if len(parts) > 4 {
-			filePath = parts[4]
-		}
-		// Extract derivation name
-		nameWithHash := parts[3]
-		nameParts := strings.Split(nameWithHash, "-")
-		drvName = strings.Join(nameParts[1:], "-")
-	} else {
-		// If it's a file in the store root, the whole path is the store path
-		storePath = targetPath
-		filePath = ""
-		// Extract derivation name from the file
-		nameWithHash := parts[3]
-		nameParts := strings.Split(nameWithHash, "-")
-		// Remove the hash prefix to get the actual name
-		fullName := strings.Join(nameParts[1:], "-")
-		// For files, we need to use a directory name for extraction
-		drvName = fullName + "-contents"
-	}
-
-	// Create workspace for editing
-	workDir, err := os.MkdirTemp("", "nix-patch-*")
+	// Step 3: Verify path is in system closure
+	systemClosure, err := verifyPathInClosure(sys, targetPath)
 	if err != nil {
-		return fmt.Errorf("failed to create temp dir: %w", err)
+		return err
 	}
-	defer os.RemoveAll(workDir)
 
-	// Extract store path to work directory using NAR
-	destPath := filepath.Join(workDir, drvName)
-
-	// Get NAR data from store
-	narData, err := store.Dump(storePath)
+	// Step 4: Parse path components
+	pathComponents, err := parseStorePath(targetPath)
 	if err != nil {
-		return fmt.Errorf("failed to dump store path: %w", err)
+		return err
 	}
 
-	// Extract NAR to destination with writable permissions
-	if err := extractNARFromStoreWritable(narData, destPath); err != nil {
-		return fmt.Errorf("failed to extract store path: %w", err)
+	// Step 5: Create workspace and edit
+	workspace, hasChanges, err := createAndEditWorkspace(cfg, pathComponents)
+	if err != nil {
+		return err
 	}
-
-	// Determine edit path
-	editPath := destPath
-	if filePath != "" {
-		editPath = filepath.Join(destPath, filePath)
-	}
-
-	// Open in editor
-	cmd = exec.Command(cfg.Editor, editPath)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("editor failed: %w", err)
-	}
-
-	// Compare the work dir with the old one
-	// We need to compare the right paths based on what was edited
-	var compareOldPath, compareNewPath string
-	if !targetInfo.IsDir() && filePath == "" {
-		// For single files, compare the original file with the edited file
-		compareOldPath = storePath
-		compareNewPath = editPath
-	} else {
-		// For directories, compare the whole directories
-		compareOldPath = storePath
-		compareNewPath = destPath
-	}
-	
-	cmd = exec.Command("diff", "--recursive", compareOldPath, compareNewPath)
-	if err := cmd.Run(); err == nil {
+	if !hasChanges {
 		log.Println("ignoring as no changes were detected")
 		return nil
 	}
+	defer workspace.cleanup()
 
-	// If dry-run mode, show diff and exit
+	// Step 6: Handle dry-run diff display
 	if cfg.DryRun {
-		log.Println("DRY-RUN MODE: Showing changes that would be applied:")
-		cmd = exec.Command("diff", "--recursive", "--unified", compareOldPath, compareNewPath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		_ = cmd.Run() // Ignore error as diff returns non-zero when files differ
-
-		log.Println("\nDRY-RUN MODE: No changes were applied to the system.")
+		showDryRunDiff(workspace.compareOldPath, workspace.compareNewPath)
 		return nil
 	}
 
-	// Build dependency graph
-	dg := NewDependencyGraph()
-	if err := dg.Build(systemClosure); err != nil {
-		return fmt.Errorf("failed to build dependency graph: %w", err)
+	// Step 7: Build dependency graph
+	_, closureChain, err := buildDependencyChain(systemClosure, pathComponents.storePath)
+	if err != nil {
+		return err
 	}
 
-	// Find dependency chain from store path to root
-	closureChain := dg.FindPathToRoot(storePath)
-
-	log.Printf("store_path=%s", storePath)
+	log.Printf("store_path=%s", pathComponents.storePath)
 	log.Printf("closure_chain=%s", strings.Join(closureChain, " "))
 
 	// Create rewrite engine
@@ -260,239 +149,320 @@ func Run(cfg *config.Config) error {
 		log.Printf("Rewriting progress: %d/%d - %s", current, total, path)
 	})
 
-	// First, we need to import the modified path to the store
-	var modifiedStorePath string
-	if cfg.DryRun {
-		// In dry-run mode, generate a fake path
-		hash, err := store.GenerateHash()
-		if err != nil {
-			return fmt.Errorf("failed to generate hash: %w", err)
-		}
-		modifiedStorePath = fmt.Sprintf("/nix/store/%s-%s", hash, drvName)
-		log.Printf("DRY-RUN: Would import modified path as: %s", modifiedStorePath)
-	} else {
-		log.Println("Importing modified path to store...")
-		narData, err := archive.Create(storePath, destPath)
-		if err != nil {
-			return fmt.Errorf("failed to create archive: %w", err)
-		}
-
-		modifiedStorePath, err = store.Import(narData)
-		if err != nil {
-			return fmt.Errorf("failed to import modified path: %w", err)
-		}
-		log.Printf("Modified path imported as: %s", modifiedStorePath)
+	// Step 8: Import modified path to store
+	modifiedStorePath, err := importModifiedPath(cfg, pathComponents, workspace.destPath)
+	if err != nil {
+		return err
 	}
 
 	// Rewrite the entire closure
 	log.Println("Starting closure rewrite...")
-	newSystemClosure, err := engine.RewriteClosure(systemClosure, storePath, modifiedStorePath)
+	newSystemClosure, err := engine.RewriteClosure(systemClosure, pathComponents.storePath, modifiedStorePath)
 	if err != nil {
 		return fmt.Errorf("failed to rewrite closure: %w", err)
 	}
 
 	log.Printf("New system closure: %s", newSystemClosure)
 
+	// Step 10: Apply or preview changes
 	if cfg.DryRun {
-		log.Println("\nDRY-RUN MODE: Preview of changes")
-		log.Println("=================================")
-		
-		// Get all planned rewrites
-		plannedRewrites := engine.GetPlannedRewrites()
-		
-		// Sort paths for consistent output
-		var paths []string
-		for oldPath := range plannedRewrites {
-			paths = append(paths, oldPath)
-		}
-		sort.Strings(paths)
-		
-		// Show all paths that would be rewritten
-		log.Printf("\nPaths that would be rewritten (%d total):", len(paths))
-		for i, oldPath := range paths {
-			newPath := plannedRewrites[oldPath]
-			if i < 10 || oldPath == storePath || oldPath == systemClosure {
-				log.Printf("  %s", oldPath)
-				log.Printf("    -> %s", newPath)
-			} else if i == 10 {
-				log.Printf("  ... and %d more paths ...", len(paths)-10)
-				break
-			}
-		}
-		
-		// Show the command that would be executed
-		log.Println("\nCommand that would be executed:")
-		if cfg.ActivationCommand != "" {
-			log.Printf("  %s", cfg.ActivationCommand)
-		} else {
-			defaultCmd := sys.GetDefaultCommand(newSystemClosure)
-			log.Printf("  %s", strings.Join(defaultCmd, " "))
-		}
-		
-		log.Println("\nSystem information:")
-		log.Printf("  System type: %s", sys.Type())
-		log.Printf("  New closure: %s", newSystemClosure)
-		
-		log.Println("\nDRY-RUN: No changes were applied.")
+		showDryRunSummary(engine, sys, pathComponents.storePath, systemClosure, newSystemClosure, cfg)
 	} else {
-		// Apply the new system closure
-		if cfg.ActivationCommand != "" {
-			log.Printf("Applying new system closure with custom command: %s", cfg.ActivationCommand)
-		} else {
-			defaultCmd := sys.GetDefaultCommand(newSystemClosure)
-			log.Printf("Applying new system closure with default command: %s", strings.Join(defaultCmd, " "))
-		}
-		if err := sys.ApplyClosure(newSystemClosure, cfg.ActivationCommand); err != nil {
-			return fmt.Errorf("failed to apply new system closure: %w", err)
-		}
-
-		if cfg.ActivationCommand != "" {
-			log.Println("Successfully applied changes!")
-		} else {
-			log.Println("Successfully applied changes! Use --activate with switch command to make permanent.")
+		if err := applySystemClosure(sys, newSystemClosure, cfg); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-// extractNARFromStoreWritable extracts a NAR archive to the specified path with writable permissions
-func extractNARFromStoreWritable(narData []byte, destPath string) error {
-	// Create NAR reader
-	nr, err := nar.NewReader(bytes.NewReader(narData))
-	if err != nil {
-		return fmt.Errorf("failed to create NAR reader: %w", err)
-	}
-	defer nr.Close()
-
-	// Check if this is a single file or directory NAR by peeking at the first entry
-	hdr, err := nr.Next()
-	if err != nil {
-		return fmt.Errorf("failed to read first NAR header: %w", err)
-	}
-
-	// If the first entry is "/" and it's a regular file, this is a single file NAR
-	if hdr.Path == "/" && hdr.Type == nar.TypeRegular {
-		// Extract single file directly to destPath
-		// Ensure parent directory exists
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-			return fmt.Errorf("failed to create parent directory: %w", err)
+// validateTargetPath ensures the given path is in the /nix/store
+func validateTargetPath(path string) (string, error) {
+	if !store.IsStorePath(path) {
+		// Try to resolve symlink
+		resolvedPath, err := filepath.EvalSymlinks(path)
+		if err != nil || !store.IsStorePath(resolvedPath) {
+			return "", fmt.Errorf("%s is not in the /nix/store", path)
 		}
+		return resolvedPath, nil
+	}
+	return path, nil
+}
 
-		// Create file with writable permissions
-		mode := os.FileMode(0644)
-		if hdr.Executable {
-			mode = 0755
-		}
-
-		f, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+// detectOrOverrideSystem detects the system type or uses the override
+func detectOrOverrideSystem(cfg *config.Config) (system.System, error) {
+	if cfg.SystemType != "" {
+		// Use the system type override
+		sys, err := system.GetSystemByType(cfg.SystemType, cfg.ProfilePath)
 		if err != nil {
-			return fmt.Errorf("failed to create file %s: %w", destPath, err)
+			return nil, fmt.Errorf("invalid system type: %w", err)
 		}
-		defer f.Close()
-
-		// Copy content
-		if _, err := io.Copy(f, nr); err != nil {
-			return fmt.Errorf("failed to write file %s: %w", destPath, err)
-		}
-
-		return nil
+		log.Printf("Using system type override: %s", sys.Type())
+		return sys, nil
 	}
 
-	// Otherwise, it's a directory NAR
-	// Create destination directory
-	if err := os.MkdirAll(destPath, 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
+	// Auto-detect system type
+	sys, err := system.Detect()
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect system type: %w", err)
+	}
+	if sys.Type() == system.TypeProfile {
+		log.Printf("No specific system detected, using user profile")
+	} else {
+		log.Printf("Detected system type: %s", sys.Type())
+	}
+	return sys, nil
+}
+
+// verifyPathInClosure ensures the target path is part of the system closure
+func verifyPathInClosure(sys system.System, targetPath string) (string, error) {
+	systemClosure, err := sys.GetClosurePath()
+	if err != nil {
+		return "", fmt.Errorf("failed to get system closure: %w", err)
 	}
 
-	// Process the first entry if it's not the root
-	if hdr.Path != "/" {
-		// Remove leading slash for joining with destPath
-		relPath := strings.TrimPrefix(hdr.Path, "/")
-		itemPath := filepath.Join(destPath, relPath)
+	// Check that the given path is part of the system closure
+	cmd := exec.Command("nix", "why-depends", systemClosure, targetPath)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("path is not part of system closure: %w", err)
+	}
 
-		if err := processNAREntry(hdr, nr, itemPath); err != nil {
-			return err
+	return systemClosure, nil
+}
+
+// pathComponents represents the components of a store path
+type pathComponents struct {
+	storePath string
+	filePath  string
+	drvName   string
+}
+
+// parseStorePath splits a path into its store and file components
+func parseStorePath(targetPath string) (*pathComponents, error) {
+	targetInfo, err := os.Stat(targetPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat target path: %w", err)
+	}
+
+	parts := strings.SplitN(targetPath, "/", 5)
+	pc := &pathComponents{}
+	
+	if targetInfo.IsDir() || len(parts) > constants.StorePathComponents {
+		// If it's a directory or has subdirectories, use the standard logic
+		pc.storePath = strings.Join(parts[:constants.StorePathComponents], "/")
+		if len(parts) > constants.StorePathComponents {
+			pc.filePath = parts[constants.StorePathComponents]
+		}
+		// Extract derivation name
+		nameWithHash := parts[3]
+		nameParts := strings.Split(nameWithHash, "-")
+		pc.drvName = strings.Join(nameParts[1:], "-")
+	} else {
+		// If it's a file in the store root, the whole path is the store path
+		pc.storePath = targetPath
+		pc.filePath = ""
+		// Extract derivation name from the file
+		nameWithHash := parts[3]
+		nameParts := strings.Split(nameWithHash, "-")
+		// Remove the hash prefix to get the actual name
+		fullName := strings.Join(nameParts[1:], "-")
+		// For files, we need to use a directory name for extraction
+		pc.drvName = fullName + "-contents"
+	}
+
+	return pc, nil
+}
+
+// workspace represents the editing workspace
+type workspace struct {
+	workDir         string
+	destPath        string
+	compareOldPath  string
+	compareNewPath  string
+}
+
+func (w *workspace) cleanup() {
+	if w.workDir != "" {
+		if err := os.RemoveAll(w.workDir); err != nil {
+			log.Printf("Failed to clean up work directory: %v", err)
 		}
 	}
+}
 
-	// Process remaining entries
-	for {
-		hdr, err := nr.Next()
-		if err == io.EOF {
+// createAndEditWorkspace creates a temporary workspace and opens it in the editor
+func createAndEditWorkspace(cfg *config.Config, pc *pathComponents) (*workspace, bool, error) {
+	// Create workspace for editing
+	workDir, err := os.MkdirTemp("", constants.TempDirPrefix)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to create temp dir: %w", err)
+	}
+
+	w := &workspace{
+		workDir:  workDir,
+		destPath: filepath.Join(workDir, pc.drvName),
+	}
+
+	// Get NAR data from store
+	narData, err := store.Dump(pc.storePath)
+	if err != nil {
+		w.cleanup()
+		return nil, false, fmt.Errorf("failed to dump store path: %w", err)
+	}
+
+	// Extract NAR to destination with writable permissions
+	if err := nar.Extract(narData, w.destPath, nar.ExtractOptions{MakeWritable: true}); err != nil {
+		w.cleanup()
+		return nil, false, fmt.Errorf("failed to extract store path: %w", err)
+	}
+
+	// Determine edit path
+	editPath := w.destPath
+	if pc.filePath != "" {
+		editPath = filepath.Join(w.destPath, pc.filePath)
+	}
+
+	// Open in editor
+	cmd := exec.Command(cfg.Editor, editPath)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		w.cleanup()
+		return nil, false, fmt.Errorf("editor failed: %w", err)
+	}
+
+	// Determine comparison paths
+	targetInfo, _ := os.Stat(pc.storePath)
+	if !targetInfo.IsDir() && pc.filePath == "" {
+		// For single files, compare the original file with the edited file
+		w.compareOldPath = pc.storePath
+		w.compareNewPath = editPath
+	} else {
+		// For directories, compare the whole directories
+		w.compareOldPath = pc.storePath
+		w.compareNewPath = w.destPath
+	}
+	
+	// Check if there are any changes
+	cmd = exec.Command("diff", "--recursive", w.compareOldPath, w.compareNewPath)
+	if err := cmd.Run(); err == nil {
+		w.cleanup()
+		return nil, false, nil
+	}
+
+	return w, true, nil
+}
+
+// showDryRunDiff displays the diff for dry-run mode
+func showDryRunDiff(oldPath, newPath string) {
+	log.Println("DRY-RUN MODE: Showing changes that would be applied:")
+	cmd := exec.Command("diff", "--recursive", "--unified", oldPath, newPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	_ = cmd.Run() // Ignore error as diff returns non-zero when files differ
+
+	log.Println("\nDRY-RUN MODE: No changes were applied to the system.")
+}
+
+// buildDependencyChain builds the dependency graph and finds the closure chain
+func buildDependencyChain(systemClosure, storePath string) (*DependencyGraph, []string, error) {
+	dg := NewDependencyGraph()
+	if err := dg.Build(systemClosure); err != nil {
+		return nil, nil, fmt.Errorf("failed to build dependency graph: %w", err)
+	}
+
+	// Find dependency chain from store path to root
+	closureChain := dg.FindPathToRoot(storePath)
+	return dg, closureChain, nil
+}
+
+// importModifiedPath imports the modified path to the Nix store
+func importModifiedPath(cfg *config.Config, pc *pathComponents, destPath string) (string, error) {
+	if cfg.DryRun {
+		// In dry-run mode, generate a fake path
+		hash, err := store.GenerateHash()
+		if err != nil {
+			return "", fmt.Errorf("failed to generate hash: %w", err)
+		}
+		modifiedStorePath := fmt.Sprintf("%s/%s-%s", constants.NixStore, hash, pc.drvName)
+		log.Printf("DRY-RUN: Would import modified path as: %s", modifiedStorePath)
+		return modifiedStorePath, nil
+	}
+
+	log.Println("Importing modified path to store...")
+	narData, err := archive.Create(pc.storePath, destPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create archive: %w", err)
+	}
+
+	modifiedStorePath, err := store.Import(narData)
+	if err != nil {
+		return "", fmt.Errorf("failed to import modified path: %w", err)
+	}
+	log.Printf("Modified path imported as: %s", modifiedStorePath)
+	return modifiedStorePath, nil
+}
+
+// showDryRunSummary displays a summary of what would be done in dry-run mode
+func showDryRunSummary(engine *rewrite.Engine, sys system.System, storePath, systemClosure, newSystemClosure string, cfg *config.Config) {
+	log.Println("\nDRY-RUN MODE: Preview of changes")
+	log.Println("=================================")
+	
+	// Get all planned rewrites
+	plannedRewrites := engine.GetPlannedRewrites()
+	
+	// Sort paths for consistent output
+	var paths []string
+	for oldPath := range plannedRewrites {
+		paths = append(paths, oldPath)
+	}
+	sort.Strings(paths)
+	
+	// Show all paths that would be rewritten
+	log.Printf("\nPaths that would be rewritten (%d total):", len(paths))
+	for i, oldPath := range paths {
+		newPath := plannedRewrites[oldPath]
+		if i < 10 || oldPath == storePath || oldPath == systemClosure {
+			log.Printf("  %s", oldPath)
+			log.Printf("    -> %s", newPath)
+		} else if i == 10 {
+			log.Printf("  ... and %d more paths ...", len(paths)-10)
 			break
 		}
-		if err != nil {
-			return fmt.Errorf("failed to read NAR header: %w", err)
-		}
-
-		// Skip the root entry "/"
-		if hdr.Path == "/" {
-			continue
-		}
-
-		// Remove leading slash for joining with destPath
-		relPath := strings.TrimPrefix(hdr.Path, "/")
-		itemPath := filepath.Join(destPath, relPath)
-
-		if err := processNAREntry(hdr, nr, itemPath); err != nil {
-			return err
-		}
 	}
-
-	return nil
+	
+	// Show the command that would be executed
+	log.Println("\nCommand that would be executed:")
+	if cfg.ActivationCommand != "" {
+		log.Printf("  %s", cfg.ActivationCommand)
+	} else {
+		defaultCmd := sys.GetDefaultCommand(newSystemClosure)
+		log.Printf("  %s", strings.Join(defaultCmd, " "))
+	}
+	
+	log.Println("\nSystem information:")
+	log.Printf("  System type: %s", sys.Type())
+	log.Printf("  New closure: %s", newSystemClosure)
+	
+	log.Println("\nDRY-RUN: No changes were applied.")
 }
 
-// processNAREntry processes a single NAR entry
-func processNAREntry(hdr *nar.Header, nr *nar.Reader, destPath string) error {
-	switch hdr.Type {
-	case nar.TypeDirectory:
-		// Create directory
-		if err := os.MkdirAll(destPath, 0755); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", destPath, err)
-		}
-
-	case nar.TypeRegular:
-		// Ensure parent directory exists
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-			return fmt.Errorf("failed to create parent directory: %w", err)
-		}
-
-		// Create file with writable permissions
-		mode := os.FileMode(0644)
-		if hdr.Executable {
-			mode = 0755
-		}
-
-		f, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
-		if err != nil {
-			return fmt.Errorf("failed to create file %s: %w", destPath, err)
-		}
-
-		// Copy content
-		if _, err := io.Copy(f, nr); err != nil {
-			f.Close()
-			return fmt.Errorf("failed to write file %s: %w", destPath, err)
-		}
-		f.Close()
-
-	case nar.TypeSymlink:
-		// Ensure parent directory exists
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-			return fmt.Errorf("failed to create parent directory: %w", err)
-		}
-
-		// Remove existing symlink if any
-		os.Remove(destPath)
-
-		// Create symlink
-		if err := os.Symlink(hdr.LinkTarget, destPath); err != nil {
-			return fmt.Errorf("failed to create symlink %s -> %s: %w", destPath, hdr.LinkTarget, err)
-		}
-
-	default:
-		return fmt.Errorf("unknown NAR entry type: %v", hdr.Type)
+// applySystemClosure applies the new system closure
+func applySystemClosure(sys system.System, newSystemClosure string, cfg *config.Config) error {
+	if cfg.ActivationCommand != "" {
+		log.Printf("Applying new system closure with custom command: %s", cfg.ActivationCommand)
+	} else {
+		defaultCmd := sys.GetDefaultCommand(newSystemClosure)
+		log.Printf("Applying new system closure with default command: %s", strings.Join(defaultCmd, " "))
+	}
+	if err := sys.ApplyClosure(newSystemClosure, cfg.ActivationCommand); err != nil {
+		return fmt.Errorf("failed to apply new system closure: %w", err)
 	}
 
+	if cfg.ActivationCommand != "" {
+		log.Println("Successfully applied changes!")
+	} else {
+		log.Println("Successfully applied changes! Use --activate with switch command to make permanent.")
+	}
 	return nil
 }

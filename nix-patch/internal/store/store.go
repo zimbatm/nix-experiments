@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/nix-community/go-nix/pkg/nixbase32"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/constants"
 )
 
 // ExtractHash extracts the hash part from a nix store path
@@ -35,7 +36,7 @@ func ExtractHash(path string) string {
 func IsStorePath(path string) bool {
 	// For simple validation, just check the prefix
 	// go-nix's Validate is too strict for our use case
-	return strings.HasPrefix(path, "/nix/store/")
+	return strings.HasPrefix(path, constants.NixStorePrefix)
 }
 
 // GenerateHash generates a random nix32 hash

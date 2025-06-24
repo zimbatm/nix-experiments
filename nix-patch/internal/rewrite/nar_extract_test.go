@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/nix-community/go-nix/pkg/nar"
+	gonar "github.com/nix-community/go-nix/pkg/nar"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/nar"
 )
 
 func TestExtractNAR(t *testing.T) {
@@ -36,13 +37,13 @@ func TestExtractNAR(t *testing.T) {
 
 	// Create NAR
 	var narBuf bytes.Buffer
-	if err := nar.DumpPath(&narBuf, srcDir); err != nil {
+	if err := gonar.DumpPath(&narBuf, srcDir); err != nil {
 		t.Fatalf("Failed to create NAR: %v", err)
 	}
 
 	// Extract NAR to new location
 	destDir := t.TempDir()
-	if err := extractNAR(&narBuf, destDir); err != nil {
+	if err := nar.Extract(narBuf.Bytes(), destDir, nar.ExtractOptions{PreserveMode: true}); err != nil {
 		t.Fatalf("extractNAR failed: %v", err)
 	}
 
@@ -94,13 +95,13 @@ func TestExtractNAR_EmptyArchive(t *testing.T) {
 
 	// Create NAR
 	var narBuf bytes.Buffer
-	if err := nar.DumpPath(&narBuf, srcDir); err != nil {
+	if err := gonar.DumpPath(&narBuf, srcDir); err != nil {
 		t.Fatalf("Failed to create NAR: %v", err)
 	}
 
 	// Extract NAR
 	destDir := t.TempDir()
-	if err := extractNAR(&narBuf, destDir); err != nil {
+	if err := nar.Extract(narBuf.Bytes(), destDir, nar.ExtractOptions{PreserveMode: true}); err != nil {
 		t.Fatalf("extractNAR failed: %v", err)
 	}
 
@@ -122,13 +123,13 @@ func TestExtractNARWritable(t *testing.T) {
 
 	// Create NAR
 	var narBuf bytes.Buffer
-	if err := nar.DumpPath(&narBuf, srcDir); err != nil {
+	if err := gonar.DumpPath(&narBuf, srcDir); err != nil {
 		t.Fatalf("Failed to create NAR: %v", err)
 	}
 
 	// Extract NAR with writable mode
 	destDir := t.TempDir()
-	if err := extractNARWritable(&narBuf, destDir); err != nil {
+	if err := nar.Extract(narBuf.Bytes(), destDir, nar.ExtractOptions{MakeWritable: true}); err != nil {
 		t.Fatalf("extractNARWritable failed: %v", err)
 	}
 
