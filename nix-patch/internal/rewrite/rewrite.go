@@ -137,6 +137,19 @@ func (e *Engine) getRewrite(oldPath string) (string, bool) {
 	return newPath, ok
 }
 
+// GetPlannedRewrites returns all the paths that will be rewritten
+func (e *Engine) GetPlannedRewrites() map[string]string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	
+	// Return a copy to avoid concurrent modification
+	result := make(map[string]string)
+	for old, new := range e.rewrites {
+		result[old] = new
+	}
+	return result
+}
+
 // rollback undoes all operations
 func (e *Engine) rollback(err error) error {
 	log.Printf("Rolling back %d operations due to: %v", len(e.rollbackStack), err)

@@ -79,7 +79,11 @@ func GetSystemByType(systemType string, profilePath string) (System, error) {
 		return &SystemManager{}, nil
 	case TypeProfile:
 		if profilePath == "" {
-			return nil, fmt.Errorf("profile path required when using profile system type")
+			// Default to user profile
+			profilePath = getUserProfilePath()
+			if profilePath == "" {
+				return nil, fmt.Errorf("could not determine user profile path")
+			}
 		}
 		return &Profile{ProfilePath: profilePath}, nil
 	default:

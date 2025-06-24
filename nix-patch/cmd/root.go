@@ -23,7 +23,7 @@ func Execute() error {
 	flag.BoolVar(&cfg.Verbose, "verbose", false, "enable verbose logging")
 	flag.BoolVar(&cfg.Force, "force", false, "force operation even if risky")
 	flag.StringVar(&cfg.SystemType, "system", "", "override detected system type (nixos, nix-darwin, home-manager, system-manager, profile)")
-	flag.StringVar(&cfg.ProfilePath, "profile", "", "path to custom profile (required when using -system=profile)")
+	flag.StringVar(&cfg.ProfilePath, "profile", "", "path to custom profile (defaults to user profile when using -system=profile)")
 	flag.StringVar(&cfg.ActivationCommand, "activate", "", "custom activation command (e.g., 'nixos-rebuild switch')")
 
 	flag.Usage = func() {
@@ -79,7 +79,7 @@ Options:
   -verbose         Enable verbose logging
   -force           Force operation even if risky
   -system string   Override detected system type (nixos, nix-darwin, home-manager, system-manager, profile)
-  -profile string  Path to custom profile (required when using -system=profile)
+  -profile string  Path to custom profile (defaults to user profile when using -system=profile)
   -activate string Custom activation command (e.g., 'nixos-rebuild switch')
   -h, -help        Show this help
 

@@ -107,9 +107,10 @@ func TestGetSystemByType(t *testing.T) {
 			wantType:    TypeProfile,
 		},
 		{
-			name:       "profile without path",
+			name:       "profile without path (uses default)",
 			systemType: "profile",
-			wantErr:    true,
+			wantType:   TypeProfile,
+			wantErr:    false,
 		},
 		{
 			name:       "unknown system",

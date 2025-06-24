@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/nix-community/go-nix/pkg/nar"
@@ -135,18 +136,39 @@ func Run(cfg *config.Config) error {
 		return fmt.Errorf("path is not part of system closure: %w", err)
 	}
 
-	// Split the path into store_path and file_path
-	parts := strings.SplitN(targetPath, "/", 5)
-	storePath := strings.Join(parts[:4], "/")
-	filePath := ""
-	if len(parts) > 4 {
-		filePath = parts[4]
+	// Check if targetPath is a file or directory
+	targetInfo, err := os.Stat(targetPath)
+	if err != nil {
+		return fmt.Errorf("failed to stat target path: %w", err)
 	}
 
-	// Extract derivation name
-	nameWithHash := parts[3]
-	nameParts := strings.Split(nameWithHash, "-")
-	drvName := strings.Join(nameParts[1:], "-")
+	// Split the path into store_path and file_path
+	parts := strings.SplitN(targetPath, "/", 5)
+	var storePath, filePath string
+	var drvName string
+	
+	if targetInfo.IsDir() || len(parts) > 4 {
+		// If it's a directory or has subdirectories, use the standard logic
+		storePath = strings.Join(parts[:4], "/")
+		if len(parts) > 4 {
+			filePath = parts[4]
+		}
+		// Extract derivation name
+		nameWithHash := parts[3]
+		nameParts := strings.Split(nameWithHash, "-")
+		drvName = strings.Join(nameParts[1:], "-")
+	} else {
+		// If it's a file in the store root, the whole path is the store path
+		storePath = targetPath
+		filePath = ""
+		// Extract derivation name from the file
+		nameWithHash := parts[3]
+		nameParts := strings.Split(nameWithHash, "-")
+		// Remove the hash prefix to get the actual name
+		fullName := strings.Join(nameParts[1:], "-")
+		// For files, we need to use a directory name for extraction
+		drvName = fullName + "-contents"
+	}
 
 	// Create workspace for editing
 	workDir, err := os.MkdirTemp("", "nix-patch-*")
@@ -185,7 +207,19 @@ func Run(cfg *config.Config) error {
 	}
 
 	// Compare the work dir with the old one
-	cmd = exec.Command("diff", "--recursive", storePath, destPath)
+	// We need to compare the right paths based on what was edited
+	var compareOldPath, compareNewPath string
+	if !targetInfo.IsDir() && filePath == "" {
+		// For single files, compare the original file with the edited file
+		compareOldPath = storePath
+		compareNewPath = editPath
+	} else {
+		// For directories, compare the whole directories
+		compareOldPath = storePath
+		compareNewPath = destPath
+	}
+	
+	cmd = exec.Command("diff", "--recursive", compareOldPath, compareNewPath)
 	if err := cmd.Run(); err == nil {
 		log.Println("ignoring as no changes were detected")
 		return nil
@@ -194,7 +228,7 @@ func Run(cfg *config.Config) error {
 	// If dry-run mode, show diff and exit
 	if cfg.DryRun {
 		log.Println("DRY-RUN MODE: Showing changes that would be applied:")
-		cmd = exec.Command("diff", "--recursive", "--unified", storePath, destPath)
+		cmd = exec.Command("diff", "--recursive", "--unified", compareOldPath, compareNewPath)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		_ = cmd.Run() // Ignore error as diff returns non-zero when files differ
@@ -260,12 +294,45 @@ func Run(cfg *config.Config) error {
 	log.Printf("New system closure: %s", newSystemClosure)
 
 	if cfg.DryRun {
-		log.Println("DRY-RUN: Would apply new closure")
+		log.Println("\nDRY-RUN MODE: Preview of changes")
+		log.Println("=================================")
+		
+		// Get all planned rewrites
+		plannedRewrites := engine.GetPlannedRewrites()
+		
+		// Sort paths for consistent output
+		var paths []string
+		for oldPath := range plannedRewrites {
+			paths = append(paths, oldPath)
+		}
+		sort.Strings(paths)
+		
+		// Show all paths that would be rewritten
+		log.Printf("\nPaths that would be rewritten (%d total):", len(paths))
+		for i, oldPath := range paths {
+			newPath := plannedRewrites[oldPath]
+			if i < 10 || oldPath == storePath || oldPath == systemClosure {
+				log.Printf("  %s", oldPath)
+				log.Printf("    -> %s", newPath)
+			} else if i == 10 {
+				log.Printf("  ... and %d more paths ...", len(paths)-10)
+				break
+			}
+		}
+		
+		// Show the command that would be executed
+		log.Println("\nCommand that would be executed:")
+		if cfg.ActivationCommand != "" {
+			log.Printf("  %s", cfg.ActivationCommand)
+		} else {
+			defaultCmd := sys.GetDefaultCommand(newSystemClosure)
+			log.Printf("  %s", strings.Join(defaultCmd, " "))
+		}
+		
+		log.Println("\nSystem information:")
 		log.Printf("  System type: %s", sys.Type())
 		log.Printf("  New closure: %s", newSystemClosure)
-		log.Println("\nDRY-RUN: Summary of changes:")
-		log.Printf("  - Modified path: %s -> %s", storePath, modifiedStorePath)
-		log.Printf("  - New system closure: %s", newSystemClosure)
+		
 		log.Println("\nDRY-RUN: No changes were applied.")
 	} else {
 		// Apply the new system closure
@@ -289,8 +356,8 @@ func Run(cfg *config.Config) error {
 	return nil
 }
 
-// extractNARFromStoreWritable extracts a NAR archive to the specified directory with writable permissions
-func extractNARFromStoreWritable(narData []byte, destDir string) error {
+// extractNARFromStoreWritable extracts a NAR archive to the specified path with writable permissions
+func extractNARFromStoreWritable(narData []byte, destPath string) error {
 	// Create NAR reader
 	nr, err := nar.NewReader(bytes.NewReader(narData))
 	if err != nil {
@@ -298,12 +365,58 @@ func extractNARFromStoreWritable(narData []byte, destDir string) error {
 	}
 	defer nr.Close()
 
+	// Check if this is a single file or directory NAR by peeking at the first entry
+	hdr, err := nr.Next()
+	if err != nil {
+		return fmt.Errorf("failed to read first NAR header: %w", err)
+	}
+
+	// If the first entry is "/" and it's a regular file, this is a single file NAR
+	if hdr.Path == "/" && hdr.Type == nar.TypeRegular {
+		// Extract single file directly to destPath
+		// Ensure parent directory exists
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return fmt.Errorf("failed to create parent directory: %w", err)
+		}
+
+		// Create file with writable permissions
+		mode := os.FileMode(0644)
+		if hdr.Executable {
+			mode = 0755
+		}
+
+		f, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+		if err != nil {
+			return fmt.Errorf("failed to create file %s: %w", destPath, err)
+		}
+		defer f.Close()
+
+		// Copy content
+		if _, err := io.Copy(f, nr); err != nil {
+			return fmt.Errorf("failed to write file %s: %w", destPath, err)
+		}
+
+		return nil
+	}
+
+	// Otherwise, it's a directory NAR
 	// Create destination directory
-	if err := os.MkdirAll(destDir, 0755); err != nil {
+	if err := os.MkdirAll(destPath, 0755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
-	// Process each entry in the NAR
+	// Process the first entry if it's not the root
+	if hdr.Path != "/" {
+		// Remove leading slash for joining with destPath
+		relPath := strings.TrimPrefix(hdr.Path, "/")
+		itemPath := filepath.Join(destPath, relPath)
+
+		if err := processNAREntry(hdr, nr, itemPath); err != nil {
+			return err
+		}
+	}
+
+	// Process remaining entries
 	for {
 		hdr, err := nr.Next()
 		if err == io.EOF {
@@ -318,58 +431,67 @@ func extractNARFromStoreWritable(narData []byte, destDir string) error {
 			continue
 		}
 
-		// Remove leading slash for joining with destDir
+		// Remove leading slash for joining with destPath
 		relPath := strings.TrimPrefix(hdr.Path, "/")
-		destPath := filepath.Join(destDir, relPath)
+		itemPath := filepath.Join(destPath, relPath)
 
-		switch hdr.Type {
-		case nar.TypeDirectory:
-			// Create directory
-			if err := os.MkdirAll(destPath, 0755); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", destPath, err)
-			}
-
-		case nar.TypeRegular:
-			// Ensure parent directory exists
-			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-				return fmt.Errorf("failed to create parent directory: %w", err)
-			}
-
-			// Create file with writable permissions
-			mode := os.FileMode(0644)
-			if hdr.Executable {
-				mode = 0755
-			}
-
-			f, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
-			if err != nil {
-				return fmt.Errorf("failed to create file %s: %w", destPath, err)
-			}
-
-			// Copy content
-			if _, err := io.Copy(f, nr); err != nil {
-				f.Close()
-				return fmt.Errorf("failed to write file %s: %w", destPath, err)
-			}
-			f.Close()
-
-		case nar.TypeSymlink:
-			// Ensure parent directory exists
-			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-				return fmt.Errorf("failed to create parent directory: %w", err)
-			}
-
-			// Remove existing symlink if any
-			os.Remove(destPath)
-
-			// Create symlink
-			if err := os.Symlink(hdr.LinkTarget, destPath); err != nil {
-				return fmt.Errorf("failed to create symlink %s -> %s: %w", destPath, hdr.LinkTarget, err)
-			}
-
-		default:
-			return fmt.Errorf("unknown NAR entry type: %v", hdr.Type)
+		if err := processNAREntry(hdr, nr, itemPath); err != nil {
+			return err
 		}
+	}
+
+	return nil
+}
+
+// processNAREntry processes a single NAR entry
+func processNAREntry(hdr *nar.Header, nr *nar.Reader, destPath string) error {
+	switch hdr.Type {
+	case nar.TypeDirectory:
+		// Create directory
+		if err := os.MkdirAll(destPath, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", destPath, err)
+		}
+
+	case nar.TypeRegular:
+		// Ensure parent directory exists
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return fmt.Errorf("failed to create parent directory: %w", err)
+		}
+
+		// Create file with writable permissions
+		mode := os.FileMode(0644)
+		if hdr.Executable {
+			mode = 0755
+		}
+
+		f, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+		if err != nil {
+			return fmt.Errorf("failed to create file %s: %w", destPath, err)
+		}
+
+		// Copy content
+		if _, err := io.Copy(f, nr); err != nil {
+			f.Close()
+			return fmt.Errorf("failed to write file %s: %w", destPath, err)
+		}
+		f.Close()
+
+	case nar.TypeSymlink:
+		// Ensure parent directory exists
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return fmt.Errorf("failed to create parent directory: %w", err)
+		}
+
+		// Remove existing symlink if any
+		os.Remove(destPath)
+
+		// Create symlink
+		if err := os.Symlink(hdr.LinkTarget, destPath); err != nil {
+			return fmt.Errorf("failed to create symlink %s -> %s: %w", destPath, hdr.LinkTarget, err)
+		}
+
+	default:
+		return fmt.Errorf("unknown NAR entry type: %v", hdr.Type)
 	}
 
 	return nil
