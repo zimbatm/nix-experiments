@@ -1,7 +1,6 @@
 package store
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -122,35 +121,6 @@ func TestIsStorePath(t *testing.T) {
 	})
 }
 
-func TestGenerateHash(t *testing.T) {
-	// Test that GenerateHash returns a valid nix32 hash
-	hash1, err := GenerateHash()
-	if err != nil {
-		t.Fatalf("GenerateHash() error = %v", err)
-	}
-
-	// Nix32 hashes should be 32 characters
-	if len(hash1) != 32 {
-		t.Errorf("GenerateHash() returned hash of length %d, want 32", len(hash1))
-	}
-
-	// Should only contain valid nix32 characters
-	validChars := "0123456789abcdfghijklmnpqrsvwxyz"
-	for _, c := range hash1 {
-		if !strings.Contains(validChars, string(c)) {
-			t.Errorf("GenerateHash() returned invalid character: %c", c)
-		}
-	}
-
-	// Two calls should return different hashes
-	hash2, err := GenerateHash()
-	if err != nil {
-		t.Fatalf("GenerateHash() error = %v", err)
-	}
-	if hash1 == hash2 {
-		t.Error("GenerateHash() returned same hash twice")
-	}
-}
 
 func TestParseStorePath(t *testing.T) {
 	tests := []struct {

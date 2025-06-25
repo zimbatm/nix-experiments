@@ -17,12 +17,7 @@ const (
 	DefaultTimeout = 2 * time.Minute
 
 	// Cache settings
-	DefaultCacheTTL = 5 * time.Minute
 	MaxCacheSize    = 100 * 1024 * 1024 // 100MB
-
-	// File permissions
-	DefaultDirPerm  = 0755
-	DefaultFilePerm = 0644
 )
 
 // Config holds the application configuration

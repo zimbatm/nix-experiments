@@ -21,31 +21,6 @@ func TestStoreCache_GetReferences(t *testing.T) {
 	// This would be better as an integration test
 }
 
-func TestStoreCache_Clear(t *testing.T) {
-	s := store.New("/nix/store")
-	cache := NewStoreCacheWithStore(s)
-
-	// Add some test data
-	cache.references["test-path"] = cacheEntry{
-		data:      []string{"ref1", "ref2"},
-		timestamp: time.Now(),
-	}
-	cache.narData["test-nar"] = cacheEntry{
-		data:      []byte("test data"),
-		timestamp: time.Now(),
-	}
-
-	// Clear cache
-	cache.Clear()
-
-	// Verify everything is cleared
-	if len(cache.references) != 0 {
-		t.Error("References cache not cleared")
-	}
-	if len(cache.narData) != 0 {
-		t.Error("NAR data cache not cleared")
-	}
-}
 
 func TestStoreCache_Concurrency(t *testing.T) {
 	s := store.New("/nix/store")

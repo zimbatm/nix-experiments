@@ -203,12 +203,4 @@ func (e *Engine) createNewStorePath(originalPath, contentsPath string) (string, 
 	return importedPath, nil
 }
 
-// FileInfo represents information about a file being rewritten
-type FileInfo struct {
-	Path      string
-	IsSymlink bool
-	Target    string
-	Size      int64
-	Mode      os.FileMode
-}
 

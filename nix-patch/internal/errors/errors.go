@@ -102,24 +102,6 @@ func Wrap(err error, code ErrorCode, op string) *Error {
 	}
 }
 
-// WithPath adds a path to the error
-func WithPath(err error, path string) error {
-	if err == nil {
-		return nil
-	}
-
-	if e, ok := err.(*Error); ok {
-		e.Path = path
-		return e
-	}
-
-	return &Error{
-		Code: ErrCodeUnknown,
-		Path: path,
-		Err:  err,
-	}
-}
-
 // IsCode checks if an error has a specific code
 func IsCode(err error, code ErrorCode) bool {
 	if err == nil {
@@ -133,18 +115,6 @@ func IsCode(err error, code ErrorCode) bool {
 
 	return e.Code == code
 }
-
-// Common errors
-var (
-	// Store errors
-	ErrInvalidStorePath = New(ErrCodeStore, "store", "invalid store path")
-	ErrPathNotInStore   = New(ErrCodeStore, "store", "path is not in nix store")
-	ErrStoreDump        = New(ErrCodeStore, "store.dump", "failed to dump store path")
-	ErrStoreImport      = New(ErrCodeStore, "store.import", "failed to import to store")
-
-	// Validation errors
-	ErrCyclicDependency = New(ErrCodeValidation, "validate", "cyclic dependency detected")
-)
 
 // Format formats an error for user display
 func Format(err error) string {

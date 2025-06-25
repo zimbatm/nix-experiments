@@ -85,10 +85,3 @@ func (c *StoreCache) GetNARData(path string) ([]byte, error) {
 	return data, nil
 }
 
-// Clear removes all cached data
-func (c *StoreCache) Clear() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.references = make(map[string]cacheEntry)
-	c.narData = make(map[string]cacheEntry)
-}

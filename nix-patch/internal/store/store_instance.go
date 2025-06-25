@@ -84,71 +84,6 @@ func (s *Store) QueryReferences(path string) ([]string, error) {
 	return strings.Split(strings.TrimSpace(string(output)), "\n"), nil
 }
 
-// QueryReferencesBatch returns the references for multiple store paths in a single call
-func (s *Store) QueryReferencesBatch(paths []string) (map[string][]string, error) {
-	if len(paths) == 0 {
-		return make(map[string][]string), nil
-	}
-
-	// Build command with all paths
-	args := append([]string{"--query", "--references"}, paths...)
-	output, err := s.execNixStore(args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query references: %w", err)
-	}
-
-	// Parse output - nix-store outputs references grouped by path
-	result := make(map[string][]string)
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	currentPath := ""
-
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		// Check if this line is a queried path (ends with colon)
-		if strings.HasSuffix(line, ":") {
-			currentPath = strings.TrimSuffix(line, ":")
-			result[currentPath] = []string{}
-		} else if currentPath != "" {
-			// This is a reference for the current path
-			result[currentPath] = append(result[currentPath], line)
-		}
-	}
-
-	// Fill in empty results for paths with no references
-	for _, path := range paths {
-		if _, exists := result[path]; !exists {
-			result[path] = []string{}
-		}
-	}
-
-	return result, nil
-}
-
-// QueryRequisites returns all transitive references of a store path
-func (s *Store) QueryRequisites(path string) ([]string, error) {
-	output, err := s.execNixStore("--query", "--requisites", path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query requisites: %w", err)
-	}
-
-	if len(output) == 0 {
-		return []string{}, nil
-	}
-
-	// The output includes the path itself, so we might want to filter it
-	allPaths := strings.Split(strings.TrimSpace(string(output)), "\n")
-	var result []string
-	for _, p := range allPaths {
-		if p != path {
-			result = append(result, p)
-		}
-	}
-
-	return result, nil
-}
-
 // Dump creates a NAR dump of the given path
 func (s *Store) Dump(path string) ([]byte, error) {
 	output, err := s.execNixStore("--dump", path)
@@ -250,3 +185,4 @@ func (s *Store) WhyDepends(from, to string, all bool) ([]byte, error) {
 	
 	return s.execNix(args...)
 }
+
