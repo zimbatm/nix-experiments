@@ -132,7 +132,7 @@ func TestWrap(t *testing.T) {
 
 	// Test wrapping Error type
 	err := &Error{
-		Code:    ErrCodeFS,
+		Code:    ErrCodeValidation,
 		Path:    "/test/path",
 		Message: "original error",
 	}

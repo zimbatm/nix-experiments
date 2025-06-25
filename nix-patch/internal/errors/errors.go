@@ -16,17 +16,8 @@ const (
 	// Store operation errors
 	ErrCodeStore ErrorCode = "STORE"
 
-	// File system errors
-	ErrCodeFS ErrorCode = "FILESYSTEM"
-
-	// Command execution errors
-	ErrCodeExec ErrorCode = "EXEC"
-
 	// Validation errors
 	ErrCodeValidation ErrorCode = "VALIDATION"
-
-	// Rewrite errors
-	ErrCodeRewrite ErrorCode = "REWRITE"
 
 	// Unknown errors
 	ErrCodeUnknown ErrorCode = "UNKNOWN"
@@ -151,13 +142,8 @@ var (
 	ErrStoreDump        = New(ErrCodeStore, "store.dump", "failed to dump store path")
 	ErrStoreImport      = New(ErrCodeStore, "store.import", "failed to import to store")
 
-	// File system errors
-	ErrFileNotFound = New(ErrCodeFS, "fs", "file not found")
-	ErrPermission   = New(ErrCodeFS, "fs", "permission denied")
-
 	// Validation errors
 	ErrCyclicDependency = New(ErrCodeValidation, "validate", "cyclic dependency detected")
-	ErrNoChanges        = New(ErrCodeValidation, "validate", "no changes detected")
 )
 
 // Format formats an error for user display
@@ -177,10 +163,6 @@ func Format(err error) string {
 		return fmt.Sprintf("Configuration error: %s", e.Message)
 	case ErrCodeStore:
 		return fmt.Sprintf("Store operation failed: %s", e.Error())
-	case ErrCodeFS:
-		return fmt.Sprintf("File system error: %s", e.Error())
-	case ErrCodeExec:
-		return fmt.Sprintf("Command execution failed: %s", e.Error())
 	case ErrCodeValidation:
 		return fmt.Sprintf("Validation error: %s", e.Message)
 	default:
