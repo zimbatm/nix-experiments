@@ -179,53 +179,29 @@ func (e *Engine) rewriteSymlink(linkPath string) error {
 
 // createNewStorePath creates a new store path from modified contents
 func (e *Engine) createNewStorePath(originalPath, contentsPath string) (string, error) {
-	// Get the references from the original path
-	refs, err := e.cache.GetReferences(originalPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to get references: %w", err)
-	}
-
-	// Update references based on our rewrites
-	updatedRefs := make([]string, 0, len(refs))
-	for _, ref := range refs {
-		if newRef, ok := e.getRewrite(ref); ok {
-			updatedRefs = append(updatedRefs, newRef)
-		} else {
-			updatedRefs = append(updatedRefs, ref)
-		}
-	}
-
-	// In dry-run mode, generate a fake path
-	if e.dryRun {
-		hash, err := store.GenerateHash()
-		if err != nil {
-			return "", fmt.Errorf("failed to generate hash: %w", err)
-		}
-
-		// Extract name from original path
-		pathInfo, err := store.ParseStorePath(originalPath)
-		if err != nil {
-			return "", fmt.Errorf("failed to parse original path: %w", err)
-		}
-
-		newPath := fmt.Sprintf("%s/%s-%s", constants.NixStore, hash, pathInfo.Name)
-		log.Printf("DRY-RUN: Would create new store path: %s", newPath)
-		return newPath, nil
-	}
-
 	// Create archive with the rewrite map
-	archiveData, err := archive.CreateWithRewrites(originalPath, contentsPath, e.rewrites)
+	archiveData, newPath, err := archive.CreateWithRewrites(originalPath, contentsPath, e.rewrites)
 	if err != nil {
 		return "", fmt.Errorf("failed to create archive: %w", err)
 	}
 
+	if e.dryRun {
+		log.Printf("DRY-RUN: Would create new store path: %s", newPath)
+		return newPath, nil
+	}
+
 	// Import to store
-	newPath, err := store.Import(archiveData)
+	importedPath, err := store.Import(archiveData)
 	if err != nil {
 		return "", fmt.Errorf("failed to import to store: %w", err)
 	}
 
-	return newPath, nil
+	// Verify the imported path matches what we expected
+	if importedPath != newPath {
+		log.Printf("Warning: imported path differs from expected: got %s, expected %s", importedPath, newPath)
+	}
+
+	return importedPath, nil
 }
 
 // FileInfo represents information about a file being rewritten

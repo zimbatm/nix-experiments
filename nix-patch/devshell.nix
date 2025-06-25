@@ -4,6 +4,7 @@ pkgs.mkShell {
   packages = [
     pkgs.go
     pkgs.nixos-rebuild-ng
+    pkgs.golangci-lint
   ];
 
   # Add environment variables

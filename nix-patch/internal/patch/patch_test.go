@@ -8,50 +8,6 @@ import (
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
 )
 
-func TestDependencyGraph_Build(t *testing.T) {
-	dg := NewDependencyGraph()
-
-	// Test initialization
-	if dg.parents == nil {
-		t.Error("DependencyGraph not properly initialized")
-	}
-
-	// Note: Build() requires actual Nix store paths
-	// This would be better as an integration test
-}
-
-func TestDependencyGraph_FindPathToRoot(t *testing.T) {
-	dg := NewDependencyGraph()
-
-	// Set up a simple dependency chain: a -> b -> c
-	dg.parents["c"] = "b"
-	dg.parents["b"] = "a"
-
-	path := dg.FindPathToRoot("c")
-
-	expected := []string{"a", "b", "c"}
-	if len(path) != len(expected) {
-		t.Errorf("Expected path length %d, got %d", len(expected), len(path))
-	}
-
-	for i, p := range path {
-		if p != expected[i] {
-			t.Errorf("Path[%d] = %s, want %s", i, p, expected[i])
-		}
-	}
-}
-
-func TestDependencyGraph_FindPathToRoot_NoParent(t *testing.T) {
-	dg := NewDependencyGraph()
-
-	// Test with a node that has no parent
-	path := dg.FindPathToRoot("standalone")
-
-	if len(path) != 1 || path[0] != "standalone" {
-		t.Errorf("Expected single element path for standalone node, got %v", path)
-	}
-}
-
 func TestRun_InvalidPath(t *testing.T) {
 	cfg := &config.Config{
 		Path:   "/tmp/not-a-store-path",

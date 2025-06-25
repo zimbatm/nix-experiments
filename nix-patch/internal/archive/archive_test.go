@@ -7,6 +7,7 @@ import (
 
 	"github.com/nix-community/go-nix/pkg/wire"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
 func TestWriteUint64(t *testing.T) {
@@ -174,4 +175,83 @@ func TestExportFormatStructure(t *testing.T) {
 // These would be better tested as integration tests or with mocks
 func TestArchiveOperations(t *testing.T) {
 	t.Skip("Archive operations require Nix store access - implement as integration tests")
+}
+
+func TestContentBasedHashGeneration(t *testing.T) {
+	t.Run("GenerateContentHash produces valid nixbase32", func(t *testing.T) {
+		testData := []byte("test NAR content for hashing")
+		hash := store.GenerateContentHash(testData)
+		
+		// Verify hash format (nixbase32 character set)
+		validChars := "0123456789abcdfghijklmnpqrsvwxyz"
+		for _, c := range hash {
+			if !bytes.ContainsRune([]byte(validChars), c) {
+				t.Errorf("Invalid character in nixbase32 hash: %c", c)
+			}
+		}
+		
+		// Verify hash length (20 bytes = 32 chars in base32)
+		if len(hash) != 32 {
+			t.Errorf("Expected hash length 32, got %d", len(hash))
+		}
+	})
+
+	t.Run("hash is deterministic", func(t *testing.T) {
+		data := []byte("deterministic test data")
+		
+		hash1 := store.GenerateContentHash(data)
+		hash2 := store.GenerateContentHash(data)
+		
+		if hash1 != hash2 {
+			t.Errorf("Hash not deterministic: %s vs %s", hash1, hash2)
+		}
+	})
+
+	t.Run("different content produces different hash", func(t *testing.T) {
+		data1 := []byte("content 1")
+		data2 := []byte("content 2")
+		
+		hash1 := store.GenerateContentHash(data1)
+		hash2 := store.GenerateContentHash(data2)
+		
+		if hash1 == hash2 {
+			t.Errorf("Different content produced same hash: %s", hash1)
+		}
+	})
+
+	t.Run("store path parsing and reconstruction", func(t *testing.T) {
+		// Test the path generation logic without actual store operations
+		oldPath := "/nix/store/abc123def456ghi789jkl012mno345p-test-package-1.0"
+		
+		// Parse the old path to extract the name
+		sp, err := store.ParseStorePath(oldPath)
+		if err != nil {
+			t.Fatalf("Failed to parse store path: %v", err)
+		}
+		
+		if sp.Name != "test-package-1.0" {
+			t.Errorf("Expected name 'test-package-1.0', got '%s'", sp.Name)
+		}
+		
+		// Simulate modified content
+		narData := []byte("modified NAR content")
+		newHash := store.GenerateContentHash(narData)
+		
+		// Build expected new path
+		expectedPath := "/nix/store/" + newHash + "-" + sp.Name
+		
+		// Verify path format
+		if !bytes.HasPrefix([]byte(expectedPath), []byte("/nix/store/")) {
+			t.Errorf("Invalid store path prefix: %s", expectedPath)
+		}
+		
+		if !bytes.Contains([]byte(expectedPath), []byte("-test-package-1.0")) {
+			t.Errorf("Expected path to contain package name, got: %s", expectedPath)
+		}
+		
+		// Verify the hash part is different from original
+		if bytes.HasPrefix([]byte(expectedPath), []byte("/nix/store/abc123def456ghi789jkl012mno345p")) {
+			t.Errorf("New path should have different hash than original")
+		}
+	})
 }

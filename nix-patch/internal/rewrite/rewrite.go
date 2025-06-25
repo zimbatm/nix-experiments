@@ -66,22 +66,19 @@ type RollbackOp struct {
 	Data interface{}
 }
 
-// RewriteClosure rewrites an entire closure starting from the modified path
-func (e *Engine) RewriteClosure(systemClosure, modifiedPath, newModifiedPath string) (string, error) {
+// RewriteClosure rewrites an entire closure with pre-computed affected paths
+func (e *Engine) RewriteClosure(systemClosure, modifiedPath, newModifiedPath string, affectedPaths []string) (string, error) {
 	log.Printf("Starting closure rewrite: %s -> %s", modifiedPath, newModifiedPath)
+	log.Printf("Using pre-computed affected paths: %d paths", len(affectedPaths))
 
 	// Initialize with the user's modification
 	e.recordRewrite(modifiedPath, newModifiedPath)
 
-	// Build reverse dependency graph (what depends on what)
+	// Build dependency graph for sorting
 	graph, err := e.buildReverseDependencyGraph(systemClosure)
 	if err != nil {
-		return "", fmt.Errorf("failed to build dependency graph: %w", err)
+		return "", fmt.Errorf("failed to build dependency graph for sorting: %w", err)
 	}
-
-	// Find all paths that need rewriting (everything that depends on modified path)
-	affectedPaths := e.findAffectedPaths(modifiedPath, graph)
-	log.Printf("Found %d affected paths", len(affectedPaths))
 
 	// Sort paths by dependency order (leaves first, roots last)
 	sortedPaths, err := e.topologicalSort(affectedPaths, graph)
@@ -211,36 +208,6 @@ func (e *Engine) buildReverseDependencyGraph(root string) (*DependencyGraph, err
 	return graph, nil
 }
 
-// findAffectedPaths finds all paths affected by a change
-func (e *Engine) findAffectedPaths(modifiedPath string, graph *DependencyGraph) []string {
-	affected := make(map[string]bool)
-
-	// BFS to find all dependents
-	queue := []string{modifiedPath}
-
-	for len(queue) > 0 {
-		current := queue[0]
-		queue = queue[1:]
-
-		if affected[current] {
-			continue
-		}
-		affected[current] = true
-
-		// Add all paths that depend on this one
-		if deps, ok := graph.dependencies[current]; ok {
-			queue = append(queue, deps...)
-		}
-	}
-
-	// Convert to slice
-	result := make([]string, 0, len(affected))
-	for path := range affected {
-		result = append(result, path)
-	}
-
-	return result
-}
 
 // topologicalSort sorts paths by dependency order
 func (e *Engine) topologicalSort(paths []string, graph *DependencyGraph) ([]string, error) {

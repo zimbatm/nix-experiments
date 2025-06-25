@@ -4,42 +4,7 @@ import (
 	"testing"
 )
 
-func TestDependencyGraph(t *testing.T) {
-	// Test building a simple dependency graph
-	graph := &DependencyGraph{
-		dependencies: map[string][]string{
-			"/nix/store/abc-glibc": {"/nix/store/def-vim", "/nix/store/ghi-bash"},
-			"/nix/store/def-vim":   {"/nix/store/jkl-system"},
-		},
-		references: map[string][]string{
-			"/nix/store/def-vim":    {"/nix/store/abc-glibc"},
-			"/nix/store/ghi-bash":   {"/nix/store/abc-glibc"},
-			"/nix/store/jkl-system": {"/nix/store/def-vim"},
-		},
-	}
-
-	engine := NewEngine()
-
-	// Test finding affected paths
-	affected := engine.findAffectedPaths("/nix/store/abc-glibc", graph)
-
-	expectedAffected := map[string]bool{
-		"/nix/store/abc-glibc":  true,
-		"/nix/store/def-vim":    true,
-		"/nix/store/ghi-bash":   true,
-		"/nix/store/jkl-system": true,
-	}
-
-	if len(affected) != len(expectedAffected) {
-		t.Errorf("Expected %d affected paths, got %d", len(expectedAffected), len(affected))
-	}
-
-	for _, path := range affected {
-		if !expectedAffected[path] {
-			t.Errorf("Unexpected affected path: %s", path)
-		}
-	}
-}
+// TestDependencyGraph has been removed since findAffectedPaths is now handled by whydepends package
 
 func TestTopologicalSort(t *testing.T) {
 	// For rewriting: if A depends on B, we need to rewrite B first

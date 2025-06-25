@@ -15,7 +15,8 @@ import (
 
 // Create creates a new Nix archive export format with the given path
 // This format is what nix-store --export produces
-func Create(oldPath, newPath string) ([]byte, error) {
+// Returns the archive data and the store path that will be created
+func Create(oldPath, newPath string) ([]byte, string, error) {
 	if newPath == "" {
 		newPath = oldPath
 	}
@@ -23,7 +24,7 @@ func Create(oldPath, newPath string) ([]byte, error) {
 	// Get references
 	refs, err := store.QueryReferences(oldPath)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Get deriver (commented out in original, keeping empty)
@@ -34,68 +35,89 @@ func Create(oldPath, newPath string) ([]byte, error) {
 	// Write the export format header
 	// Number of NAR files to add
 	if err := wire.WriteUint64(&buf, uint64(config.ExportVersion)); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Create NAR of the path
 	narBuf := &bytes.Buffer{}
 	if err := nar.DumpPath(narBuf, newPath); err != nil {
-		return nil, fmt.Errorf("failed to create NAR: %w", err)
+		return nil, "", fmt.Errorf("failed to create NAR: %w", err)
 	}
+	narData := narBuf.Bytes()
 
 	// Write the NAR data
-	buf.Write(narBuf.Bytes())
+	buf.Write(narData)
 
 	// Magic number "NIXIN"
 	if err := wire.WriteUint64(&buf, uint64(config.NixinMagic)); err != nil {
-		return nil, err
+		return nil, "", err
+	}
+
+	// Determine the store path to write
+	storePath := oldPath
+	if oldPath != newPath {
+		// Content has been modified, generate a new store path
+		newHash := store.GenerateContentHash(narData)
+		
+		// Extract derivation name from old path
+		sp, err := store.ParseStorePath(oldPath)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to parse store path: %w", err)
+		}
+		
+		storePath = fmt.Sprintf("%s/%s-%s", constants.NixStore, newHash, sp.Name)
 	}
 
 	// Path
-	if err := wire.WriteString(&buf, oldPath); err != nil {
-		return nil, err
+	if err := wire.WriteString(&buf, storePath); err != nil {
+		return nil, "", err
 	}
 
 	// Number of references
 	if err := wire.WriteUint64(&buf, uint64(len(refs))); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// References
 	for _, ref := range refs {
 		if err := wire.WriteString(&buf, ref); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 
 	// Deriver
 	if err := wire.WriteString(&buf, deriver); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Two zeros at the end
 	if err := wire.WriteUint64(&buf, 0); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if err := wire.WriteUint64(&buf, 0); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return buf.Bytes(), nil
+	return buf.Bytes(), storePath, nil
 }
 
 // CreateWithRewrites creates a new Nix archive with path rewrites applied
-func CreateWithRewrites(oldPath, pathToAdd string, rewrites map[string]string) ([]byte, error) {
-	// Generate new hash and path
-	newHash, err := store.GenerateHash()
-	if err != nil {
-		return nil, err
+// Returns the archive data and the store path that will be created
+func CreateWithRewrites(oldPath, pathToAdd string, rewrites map[string]string) ([]byte, string, error) {
+	// Create NAR from the pathToAdd first to generate content-based hash
+	narBuf := &bytes.Buffer{}
+	if err := nar.DumpPath(narBuf, pathToAdd); err != nil {
+		return nil, "", fmt.Errorf("failed to create NAR: %w", err)
 	}
+	narData := narBuf.Bytes()
+
+	// Generate content-based hash from NAR data
+	newHash := store.GenerateContentHash(narData)
 
 	// Extract derivation name
 	sp, err := store.ParseStorePath(oldPath)
 	if err != nil {
-		return nil, fmt.Errorf("invalid store path: %w", err)
+		return nil, "", fmt.Errorf("invalid store path: %w", err)
 	}
 
 	newPath := fmt.Sprintf("%s/%s-%s", constants.NixStore, newHash, sp.Name)
@@ -106,7 +128,7 @@ func CreateWithRewrites(oldPath, pathToAdd string, rewrites map[string]string) (
 	// Get references and apply rewrites
 	refs, err := store.QueryReferences(oldPath)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	rewrittenRefs := make([]string, 0, len(refs))
@@ -122,18 +144,10 @@ func CreateWithRewrites(oldPath, pathToAdd string, rewrites map[string]string) (
 
 	// Write export format header
 	if err := wire.WriteUint64(&buf, uint64(config.ExportVersion)); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	// For rewriting, we need to create a temporary directory with rewrites applied
-	// This is a limitation - we can't easily rewrite inside a NAR stream
-	// So we'll use the original approach of dumping and rewriting
-	narData, err := store.Dump(pathToAdd)
-	if err != nil {
-		return nil, err
-	}
-
-	// Apply hash replacements
+	// Apply hash replacements to the NAR data we already generated
 	if len(rewrites) > 0 {
 		narStr := string(narData)
 		for oldRef, newRef := range rewrites {
@@ -150,38 +164,38 @@ func CreateWithRewrites(oldPath, pathToAdd string, rewrites map[string]string) (
 
 	// Magic number "NIXIN"
 	if err := wire.WriteUint64(&buf, uint64(config.NixinMagic)); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Path
 	if err := wire.WriteString(&buf, newPath); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Number of references
 	if err := wire.WriteUint64(&buf, uint64(len(rewrittenRefs))); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// References
 	for _, ref := range rewrittenRefs {
 		if err := wire.WriteString(&buf, ref); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 
 	// Deriver (empty)
 	if err := wire.WriteString(&buf, ""); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Two zeros at the end
 	if err := wire.WriteUint64(&buf, 0); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if err := wire.WriteUint64(&buf, 0); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return buf.Bytes(), nil
+	return buf.Bytes(), newPath, nil
 }

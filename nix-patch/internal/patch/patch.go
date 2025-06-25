@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
-	"sync/atomic"
 
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/archive"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
@@ -19,215 +17,10 @@ import (
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/rewrite"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/system"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/whydepends"
 )
 
-// DependencyGraph represents the dependency relationships in a closure
-type DependencyGraph struct {
-	parents map[string]string // child -> parent mapping of store paths
-}
 
-// NewDependencyGraph creates a new dependency graph
-func NewDependencyGraph() *DependencyGraph {
-	return &DependencyGraph{
-		parents: make(map[string]string),
-	}
-}
-
-// Build builds a dependency graph from root
-func (dg *DependencyGraph) Build(root string) error {
-	visited := make(map[string]bool)
-	queue := []string{root}
-
-	for len(queue) > 0 {
-		path := queue[0]
-		queue = queue[1:]
-
-		log.Printf("path=%s", path)
-
-		if visited[path] {
-			continue
-		}
-		visited[path] = true
-
-		// Get references
-		refs, err := store.QueryReferences(path)
-		if err != nil {
-			// Path might not have references
-			continue
-		}
-
-		for _, ref := range refs {
-			dg.parents[ref] = path
-			queue = append(queue, ref)
-		}
-	}
-
-	return nil
-}
-
-// BuildParallel builds a dependency graph from root using parallel processing
-func (dg *DependencyGraph) BuildParallel(root string, workers int) error {
-	if workers <= 0 {
-		workers = 4 // Default number of workers
-	}
-
-	visited := make(map[string]bool)
-	visitedMu := &sync.Mutex{}
-	parentsMu := &sync.Mutex{}
-
-	// Work items channel
-	workCh := make(chan string, 1000)
-	var wg sync.WaitGroup
-
-	// Track active workers
-	var activeWorkers int32
-	atomic.StoreInt32(&activeWorkers, int32(workers))
-	activeMu := &sync.Mutex{}
-	activeCond := sync.NewCond(activeMu)
-
-	// Start workers
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case path, ok := <-workCh:
-					if !ok {
-						return
-					}
-					
-					// Decrement active counter when starting work
-					atomic.AddInt32(&activeWorkers, -1)
-
-					// Process the path
-					visitedMu.Lock()
-					if visited[path] {
-						visitedMu.Unlock()
-						// Increment active counter when done
-						atomic.AddInt32(&activeWorkers, 1)
-						activeMu.Lock()
-						activeCond.Signal()
-						activeMu.Unlock()
-						continue
-					}
-					visited[path] = true
-					visitedMu.Unlock()
-
-					log.Printf("path=%s", path)
-
-					// Get references
-					refs, err := store.QueryReferences(path)
-					if err != nil {
-						// Path might not have references
-						// Increment active counter when done
-						atomic.AddInt32(&activeWorkers, 1)
-						activeMu.Lock()
-						activeCond.Signal()
-						activeMu.Unlock()
-						continue
-					}
-
-					// Update parents and queue new work
-					parentsMu.Lock()
-					for _, ref := range refs {
-						dg.parents[ref] = path
-						select {
-						case workCh <- ref:
-						default:
-							// Channel full, will retry
-							go func(r string) {
-								workCh <- r
-							}(ref)
-						}
-					}
-					parentsMu.Unlock()
-
-					// Increment active counter when done
-					activeMu.Lock()
-					activeWorkers++
-					activeCond.Signal()
-					activeMu.Unlock()
-				}
-			}
-		}()
-	}
-
-	// Start with root
-	workCh <- root
-
-	// Wait for all work to complete
-	activeMu.Lock()
-	for len(workCh) > 0 || atomic.LoadInt32(&activeWorkers) < int32(workers) {
-		activeCond.Wait()
-	}
-	activeMu.Unlock()
-
-	close(workCh)
-	wg.Wait()
-
-	return nil
-}
-
-// BuildWithCache builds a dependency graph from root using a reference cache
-func (dg *DependencyGraph) BuildWithCache(root string, cache map[string][]string) error {
-	visited := make(map[string]bool)
-	queue := []string{root}
-
-	for len(queue) > 0 {
-		path := queue[0]
-		queue = queue[1:]
-
-		if visited[path] {
-			continue
-		}
-		visited[path] = true
-
-		// Check cache first
-		refs, cached := cache[path]
-		if !cached {
-			log.Printf("path=%s", path)
-			// Get references
-			var err error
-			refs, err = store.QueryReferences(path)
-			if err != nil {
-				// Path might not have references
-				continue
-			}
-			cache[path] = refs
-		}
-
-		for _, ref := range refs {
-			dg.parents[ref] = path
-			queue = append(queue, ref)
-		}
-	}
-
-	return nil
-}
-
-// FindPathToRoot finds the dependency chain from target to root
-func (dg *DependencyGraph) FindPathToRoot(target string) []string {
-	var closureChain []string
-
-	current := target
-	for current != "" {
-		closureChain = append(closureChain, current)
-		current = dg.parents[current]
-	}
-
-	// Reverse the chain
-	for i, j := 0, len(closureChain)-1; i < j; i, j = i+1, j-1 {
-		closureChain[i], closureChain[j] = closureChain[j], closureChain[i]
-	}
-
-	log.Println("Dependency chain from root to target:")
-	for _, p := range closureChain {
-		fmt.Fprintln(os.Stderr, p)
-	}
-
-	return closureChain
-}
 
 // Run executes the patch operation on a Nix store path
 func Run(cfg *config.Config) error {
@@ -243,10 +36,10 @@ func Run(cfg *config.Config) error {
 		return err
 	}
 
-	// Step 3: Verify path is in system closure
-	systemClosure, err := verifyPathInClosure(sys, targetPath)
+	// Step 3: Get system closure
+	systemClosure, err := sys.GetClosurePath()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get system closure: %w", err)
 	}
 
 	// Step 4: Parse path components
@@ -269,16 +62,16 @@ func Run(cfg *config.Config) error {
 	// Step 6: Show diff of changes
 	showDiff(workspace.compareOldPath, workspace.compareNewPath)
 
-	// Step 7: Build dependency graph
+	// Step 7: Build dependency graph and verify path is in closure
 	log.Println("Building dependency graph...")
-	_, closureChain, err := buildDependencyChain(systemClosure, pathComponents.storePath)
+	_, closureChain, affectedPaths, err := whydepends.BuildDependencyChain(systemClosure, pathComponents.storePath)
 	if err != nil {
 		return err
 	}
 	log.Println("Dependency graph built successfully")
 
 	log.Printf("store_path=%s", pathComponents.storePath)
-	log.Printf("closure_chain=%s", strings.Join(closureChain, " "))
+	log.Printf("closure_chain=%s", strings.Join(closureChain, " -> "))
 
 	// Create rewrite engine
 	engine := rewrite.NewEngine()
@@ -299,7 +92,7 @@ func Run(cfg *config.Config) error {
 
 	// Rewrite the entire closure
 	log.Println("Starting closure rewrite...")
-	newSystemClosure, err := engine.RewriteClosure(systemClosure, pathComponents.storePath, modifiedStorePath)
+	newSystemClosure, err := engine.RewriteClosure(systemClosure, pathComponents.storePath, modifiedStorePath, affectedPaths)
 	if err != nil {
 		return fmt.Errorf("failed to rewrite closure: %w", err)
 	}
@@ -356,21 +149,6 @@ func detectOrOverrideSystem(cfg *config.Config) (system.System, error) {
 	return sys, nil
 }
 
-// verifyPathInClosure ensures the target path is part of the system closure
-func verifyPathInClosure(sys system.System, targetPath string) (string, error) {
-	systemClosure, err := sys.GetClosurePath()
-	if err != nil {
-		return "", fmt.Errorf("failed to get system closure: %w", err)
-	}
-
-	// Check that the given path is part of the system closure
-	cmd := exec.Command("nix", "why-depends", systemClosure, targetPath)
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("path is not part of system closure: %w", err)
-	}
-
-	return systemClosure, nil
-}
 
 // pathComponents represents the components of a store path
 type pathComponents struct {
@@ -504,45 +282,33 @@ func showDiff(oldPath, newPath string) {
 	_ = cmd.Run() // Ignore error as diff returns non-zero when files differ
 }
 
-// buildDependencyChain builds the dependency graph and finds the closure chain
-func buildDependencyChain(systemClosure, storePath string) (*DependencyGraph, []string, error) {
-	dg := NewDependencyGraph()
-	
-	// Use parallel building with 8 workers for better performance
-	if err := dg.BuildParallel(systemClosure, 8); err != nil {
-		return nil, nil, fmt.Errorf("failed to build dependency graph: %w", err)
-	}
-
-	// Find dependency chain from store path to root
-	closureChain := dg.FindPathToRoot(storePath)
-	return dg, closureChain, nil
-}
 
 // importModifiedPath imports the modified path to the Nix store
 func importModifiedPath(cfg *config.Config, pc *pathComponents, destPath string) (string, error) {
-	if cfg.DryRun {
-		// In dry-run mode, generate a fake path
-		hash, err := store.GenerateHash()
-		if err != nil {
-			return "", fmt.Errorf("failed to generate hash: %w", err)
-		}
-		modifiedStorePath := fmt.Sprintf("%s/%s-%s", constants.NixStore, hash, pc.drvName)
-		log.Printf("DRY-RUN: Would import modified path as: %s", modifiedStorePath)
-		return modifiedStorePath, nil
-	}
-
-	log.Println("Importing modified path to store...")
-	narData, err := archive.Create(pc.storePath, destPath)
+	log.Println("Creating archive for modified path...")
+	narData, expectedStorePath, err := archive.Create(pc.storePath, destPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to create archive: %w", err)
 	}
 
-	modifiedStorePath, err := store.Import(narData)
+	if cfg.DryRun {
+		log.Printf("DRY-RUN: Would import modified path as: %s", expectedStorePath)
+		return expectedStorePath, nil
+	}
+
+	log.Println("Importing modified path to store...")
+	importedStorePath, err := store.Import(narData)
 	if err != nil {
 		return "", fmt.Errorf("failed to import modified path: %w", err)
 	}
-	log.Printf("Modified path imported as: %s", modifiedStorePath)
-	return modifiedStorePath, nil
+	
+	// Verify the imported path matches what we expected
+	if importedStorePath != expectedStorePath {
+		log.Printf("Warning: imported path differs from expected: got %s, expected %s", importedStorePath, expectedStorePath)
+	}
+	
+	log.Printf("Modified path imported as: %s", importedStorePath)
+	return importedStorePath, nil
 }
 
 // showDryRunSummary displays a summary of what would be done in dry-run mode
