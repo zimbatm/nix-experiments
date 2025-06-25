@@ -38,13 +38,31 @@ func TestExtractHash(t *testing.T) {
 		},
 	}
 
+	s := New("") // Default store
+	
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ExtractHash(tt.path); got != tt.want {
+			if got := s.ExtractHash(tt.path); got != tt.want {
 				t.Errorf("ExtractHash() = %v, want %v", got, tt.want)
 			}
 		})
 	}
+	
+	// Test with custom store root
+	t.Run("custom store root", func(t *testing.T) {
+		customStore := New("/custom/root")
+		
+		hash := customStore.ExtractHash("/custom/root/nix/store/abc123-package")
+		if hash != "abc123" {
+			t.Errorf("Expected hash 'abc123', got '%s'", hash)
+		}
+		
+		// Should not extract from default store path
+		hash = customStore.ExtractHash("/nix/store/abc123-package")
+		if hash != "" {
+			t.Errorf("Expected empty hash for wrong store, got '%s'", hash)
+		}
+	})
 }
 
 func TestIsStorePath(t *testing.T) {
@@ -80,15 +98,28 @@ func TestIsStorePath(t *testing.T) {
 		},
 	}
 
+	s := New("") // Default store at /nix/store
+	
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// For now, IsStorePath does simple validation
-			// In real implementation it might do more
-			if got := IsStorePath(tt.path); got != tt.want {
+			if got := s.IsStorePath(tt.path); got != tt.want {
 				t.Errorf("IsStorePath() = %v, want %v", got, tt.want)
 			}
 		})
 	}
+	
+	// Test with custom store root
+	t.Run("custom store root", func(t *testing.T) {
+		customStore := New("/custom/root")
+		
+		if !customStore.IsStorePath("/custom/root/nix/store/abc-pkg") {
+			t.Error("Expected custom store path to be valid")
+		}
+		
+		if customStore.IsStorePath("/nix/store/abc-pkg") {
+			t.Error("Expected default store path to be invalid for custom store")
+		}
+	})
 }
 
 func TestGenerateHash(t *testing.T) {
@@ -169,9 +200,11 @@ func TestParseStorePath(t *testing.T) {
 		},
 	}
 
+	s := New("") // Default store
+	
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseStorePath(tt.path)
+			got, err := s.ParseStorePath(tt.path)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseStorePath() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -186,6 +219,26 @@ func TestParseStorePath(t *testing.T) {
 			}
 		})
 	}
+	
+	// Test with custom store root
+	t.Run("custom store root", func(t *testing.T) {
+		customStore := New("/custom/root")
+		
+		info, err := customStore.ParseStorePath("/custom/root/nix/store/xyz789-test-pkg-1.0")
+		if err != nil {
+			t.Fatalf("ParseStorePath() error = %v", err)
+		}
+		
+		if info.Hash != "xyz789" || info.Name != "test-pkg-1.0" {
+			t.Errorf("ParseStorePath() = %+v, want Hash='xyz789', Name='test-pkg-1.0'", info)
+		}
+		
+		// Should fail for wrong store
+		_, err = customStore.ParseStorePath("/nix/store/abc123-package")
+		if err == nil {
+			t.Error("Expected error for wrong store path")
+		}
+	})
 }
 
 // Note: QueryReferences, Import, and Dump require actual Nix store interaction

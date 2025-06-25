@@ -4,8 +4,6 @@ package config
 import (
 	"os"
 	"time"
-	
-	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/constants"
 )
 
 // Constants for the application
@@ -57,8 +55,9 @@ type Config struct {
 	// If empty, the system's default activation command will be used
 	ActivationCommand string
 
-	// StoreDir is the path to the Nix store (defaults to /nix/store)
-	StoreDir string
+	// StoreRoot is the root directory for the Nix store (empty for default /nix)
+	// When set, the actual store will be at StoreRoot/nix/store
+	StoreRoot string
 }
 
 // NewConfig creates a new configuration with defaults
@@ -66,7 +65,7 @@ func NewConfig() *Config {
 	return &Config{
 		Editor:   getEnvOrDefault("EDITOR", DefaultEditor),
 		Timeout:  DefaultTimeout,
-		StoreDir: getEnvOrDefault("NIX_STORE_DIR", constants.DefaultNixStore),
+		StoreRoot: "", // Default to system /nix
 	}
 }
 

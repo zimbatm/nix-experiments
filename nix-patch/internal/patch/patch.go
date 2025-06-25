@@ -24,9 +24,9 @@ import (
 // Run executes the patch operation on a Nix store path
 func Run(cfg *config.Config) error {
 	// Create store instance
-	s := store.New(cfg.StoreDir)
+	s := store.New(cfg.StoreRoot)
 	// Step 1: Validate and resolve target path
-	targetPath, err := validateTargetPath(cfg.Path, cfg.StoreDir)
+	targetPath, err := validateTargetPath(cfg.Path, s)
 	if err != nil {
 		return err
 	}
@@ -113,12 +113,12 @@ func Run(cfg *config.Config) error {
 }
 
 // validateTargetPath ensures the given path is in the nix store
-func validateTargetPath(path, storeDir string) (string, error) {
-	if !store.IsStorePathWithDir(path, storeDir) {
+func validateTargetPath(path string, s *store.Store) (string, error) {
+	if !s.IsStorePath(path) {
 		// Try to resolve symlink
 		resolvedPath, err := filepath.EvalSymlinks(path)
-		if err != nil || !store.IsStorePathWithDir(resolvedPath, storeDir) {
-			return "", fmt.Errorf("%s is not in the %s", path, storeDir)
+		if err != nil || !s.IsStorePath(resolvedPath) {
+			return "", fmt.Errorf("%s is not in the %s", path, s.StoreDir)
 		}
 		return resolvedPath, nil
 	}

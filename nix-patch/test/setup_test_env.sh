@@ -6,10 +6,10 @@ set -euo pipefail
 
 # Configuration
 TEST_ROOT="${TEST_ROOT:-/tmp/nix-patch-test}"
-STORE_DIR="$TEST_ROOT/store"
-STATE_DIR="$TEST_ROOT/var/nix"
-PROFILE_DIR="$TEST_ROOT/var/nix/profiles"
-LOG_DIR="$TEST_ROOT/var/log/nix"
+STORE_DIR="$TEST_ROOT/nix/store"
+STATE_DIR="$TEST_ROOT/nix/var/nix"
+PROFILE_DIR="$TEST_ROOT/nix/var/nix/profiles"
+LOG_DIR="$TEST_ROOT/nix/var/log/nix"
 TEST_PROFILE="$PROFILE_DIR/test-profile"
 
 # Colors for output
@@ -53,18 +53,16 @@ setup_environment() {
     # Generate environment setup script
     cat > "$TEST_ROOT/env.sh" <<EOF
 # Source this file to set up the test environment
-export NIX_STORE_DIR="$STORE_DIR"
-export NIX_STATE_DIR="$STATE_DIR"
-export NIX_LOG_DIR="$LOG_DIR"
+export TEST_STORE_ROOT="$TEST_ROOT"
 export TEST_PROFILE="$TEST_PROFILE"
 
 echo "Test environment configured:"
-echo "  Store: \$NIX_STORE_DIR"
-echo "  State: \$NIX_STATE_DIR"
+echo "  Store Root: \$TEST_STORE_ROOT"
+echo "  Store: $STORE_DIR"
 echo "  Profile: \$TEST_PROFILE"
 echo ""
 echo "Run nix-patch with:"
-echo "  nix-patch --system=profile --profile=\$TEST_PROFILE <store-path>"
+echo "  nix-patch --store \$TEST_STORE_ROOT --system=profile --profile=\$TEST_PROFILE <store-path>"
 EOF
     
     info "Environment setup complete!"
@@ -223,7 +221,7 @@ Environment variables:
 Example workflow:
   1. $0 setup                    # Create test environment
   2. source $TEST_ROOT/env.sh    # Configure environment
-  3. nix-patch --system=profile --profile=\$TEST_PROFILE <store-item>/etc/app.conf
+  3. nix-patch --store \$TEST_STORE_ROOT --system=profile --profile=\$TEST_PROFILE <store-item>/etc/app.conf
   4. $0 cleanup                  # Clean up when done
 EOF
 }

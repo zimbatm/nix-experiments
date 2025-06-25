@@ -16,7 +16,6 @@ import (
 func TestStorePathRewriting(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("simple store path rewrite", func(t *testing.T) {
 		// Create a config file that references another store path
@@ -122,7 +121,6 @@ Config: %s/etc/config
 func TestBinaryRewriting(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("ELF binary with embedded paths", func(t *testing.T) {
 		// Create a library that will be referenced
@@ -209,7 +207,6 @@ print("Hello from custom Python")
 func TestRewriteValidation(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("prevent rewrite loops", func(t *testing.T) {
 		// Create items with potential loop
@@ -276,7 +273,6 @@ func TestRewritePerformance(t *testing.T) {
 	
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("large closure rewrite", func(t *testing.T) {
 		// Create a large number of interdependent packages

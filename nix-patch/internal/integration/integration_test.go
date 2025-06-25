@@ -28,9 +28,9 @@ func NewTestEnvironment(t *testing.T) *TestEnvironment {
 	env := &TestEnvironment{
 		t:          t,
 		tempDir:    tempDir,
-		storeDir:   filepath.Join(tempDir, "store"),
-		profileDir: filepath.Join(tempDir, "profiles"),
-		profile:    filepath.Join(tempDir, "profiles", "test-profile"),
+		storeDir:   filepath.Join(tempDir, "nix", "store"),
+		profileDir: filepath.Join(tempDir, "nix", "var", "nix", "profiles"),
+		profile:    filepath.Join(tempDir, "nix", "var", "nix", "profiles", "test-profile"),
 	}
 	
 	// Create directories
@@ -93,26 +93,16 @@ func (e *TestEnvironment) CreateProfileWithClosure(items ...string) {
 	must(e.t, os.WriteFile(manifestPath, []byte(manifest), 0644))
 }
 
-// SetupEnvironmentVariables sets up environment for the test
-func (e *TestEnvironment) SetupEnvironmentVariables() {
-	// Override NIX_STORE_DIR to use our custom store
-	os.Setenv("NIX_STORE_DIR", e.storeDir)
-	os.Setenv("NIX_STATE_DIR", filepath.Join(e.tempDir, "var/nix"))
-	os.Setenv("NIX_LOG_DIR", filepath.Join(e.tempDir, "var/log/nix"))
-}
-
 // Cleanup cleans up environment variables
 func (e *TestEnvironment) Cleanup() {
-	os.Unsetenv("NIX_STORE_DIR")
-	os.Unsetenv("NIX_STATE_DIR")
-	os.Unsetenv("NIX_LOG_DIR")
+	// No environment cleanup needed
 }
 
 // CreateConfig creates a config with test environment settings
 func (e *TestEnvironment) CreateConfig() *config.Config {
 	return &config.Config{
 		Timeout:  30 * time.Second,
-		StoreDir: e.storeDir,
+		StoreRoot: filepath.Dir(filepath.Dir(e.storeDir)), // Get root from store dir
 	}
 }
 
@@ -121,7 +111,6 @@ func (e *TestEnvironment) CreateConfig() *config.Config {
 func TestBasicFileEdit(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("edit text file in custom store", func(t *testing.T) {
 		// Create a store item
@@ -175,7 +164,6 @@ func TestBasicFileEdit(t *testing.T) {
 func TestComplexRewriteScenarios(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("edit file with dependencies", func(t *testing.T) {
 		// Create interdependent store items
@@ -240,7 +228,6 @@ func TestComplexRewriteScenarios(t *testing.T) {
 func TestErrorScenarios(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("edit non-existent file", func(t *testing.T) {
 		cfg := &config.Config{
@@ -301,7 +288,6 @@ func TestErrorScenarios(t *testing.T) {
 func TestEdgeCases(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("edit empty file", func(t *testing.T) {
 		filePath := env.CreateStoreItem("empty", "")
@@ -373,7 +359,6 @@ func TestEdgeCases(t *testing.T) {
 func TestActivationScenarios(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("custom activation command", func(t *testing.T) {
 		filePath := env.CreateStoreItem("config", "content")

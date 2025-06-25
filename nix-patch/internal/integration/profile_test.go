@@ -17,7 +17,6 @@ import (
 func TestProfileSystemIntegration(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("profile system detection", func(t *testing.T) {
 		// Create a profile
@@ -80,7 +79,6 @@ func TestProfileSystemIntegration(t *testing.T) {
 func TestProfileEdgeCases(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("broken profile symlink", func(t *testing.T) {
 		// Create a broken symlink
@@ -184,7 +182,6 @@ func TestProfilePermissions(t *testing.T) {
 	
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("read-only profile directory", func(t *testing.T) {
 		// Create profile and make directory read-only
@@ -245,7 +242,6 @@ func TestProfilePermissions(t *testing.T) {
 func TestProfileWithDifferentEditors(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	editors := []struct {
 		name   string

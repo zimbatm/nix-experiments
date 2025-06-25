@@ -58,7 +58,7 @@ func CreateWithStore(oldPath, newPath string, s *store.Store) ([]byte, string, e
 		newHash := store.GenerateContentHash(narData)
 		
 		// Extract derivation name from old path
-		sp, err := store.ParseStorePath(oldPath)
+		sp, err := s.ParseStorePath(oldPath)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to parse store path: %w", err)
 		}
@@ -113,7 +113,7 @@ func CreateWithRewritesAndStore(oldPath, pathToAdd string, rewrites map[string]s
 	newHash := store.GenerateContentHash(narData)
 
 	// Extract derivation name
-	sp, err := store.ParseStorePath(oldPath)
+	sp, err := s.ParseStorePath(oldPath)
 	if err != nil {
 		return nil, "", fmt.Errorf("invalid store path: %w", err)
 	}
@@ -149,8 +149,8 @@ func CreateWithRewritesAndStore(oldPath, pathToAdd string, rewrites map[string]s
 	if len(rewrites) > 0 {
 		narStr := string(narData)
 		for oldRef, newRef := range rewrites {
-			oldHash := store.ExtractHash(oldRef)
-			newHash := store.ExtractHash(newRef)
+			oldHash := s.ExtractHash(oldRef)
+			newHash := s.ExtractHash(newRef)
 			if oldHash != "" && newHash != "" {
 				narStr = strings.ReplaceAll(narStr, oldHash, newHash)
 			}

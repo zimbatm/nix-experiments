@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"sync"
 	
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
@@ -47,7 +48,13 @@ func NewEngine() *Engine {
 
 // NewEngineWithStoreDir creates a new rewrite engine with a custom store directory
 func NewEngineWithStoreDir(storeDir string) *Engine {
-	s := store.New(storeDir)
+	// Extract root dir from store dir (e.g., /nix/store -> "")
+	rootDir := ""
+	if storeDir != "/nix/store" {
+		// Assume store is at rootDir/nix/store
+		rootDir = strings.TrimSuffix(storeDir, "/nix/store")
+	}
+	s := store.New(rootDir)
 	return NewEngineWithStore(s)
 }
 

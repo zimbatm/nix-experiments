@@ -106,7 +106,6 @@ func createMockNARFile(path string, nar *MockNARArchive) error {
 func TestNARRewriting(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("rewrite store paths in NAR", func(t *testing.T) {
 		// Create first store item
@@ -186,7 +185,6 @@ func TestNARRewriting(t *testing.T) {
 func TestStorePathValidation(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	tests := []struct {
 		name      string
@@ -244,7 +242,6 @@ func TestStorePathValidation(t *testing.T) {
 func TestMultipleProfileTypes(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("user profile type", func(t *testing.T) {
 		// Create a user-profile-like structure
@@ -299,7 +296,6 @@ func TestMultipleProfileTypes(t *testing.T) {
 func TestConcurrentEdits(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	t.Run("multiple users editing same closure", func(t *testing.T) {
 		// Create a shared item

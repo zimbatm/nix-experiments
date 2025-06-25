@@ -12,7 +12,6 @@ import (
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/archive"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/constants"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/nar"
-	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
 // rewritePath performs the actual rewriting of a single store path
@@ -107,8 +106,8 @@ func (e *Engine) rewriteFile(filePath string) error {
 	modified := false
 	e.mu.RLock()
 	for oldPath, newPath := range e.rewrites {
-		oldHash := store.ExtractHash(oldPath)
-		newHash := store.ExtractHash(newPath)
+		oldHash := e.store.ExtractHash(oldPath)
+		newHash := e.store.ExtractHash(newPath)
 
 		if oldHash != "" && newHash != "" && bytes.Contains(data, []byte(oldHash)) {
 			data = bytes.ReplaceAll(data, []byte(oldHash), []byte(newHash))
@@ -153,8 +152,8 @@ func (e *Engine) rewriteSymlink(linkPath string) error {
 			modified = true
 		} else {
 			// Also try with just the hash
-			oldHash := store.ExtractHash(oldPath)
-			newHash := store.ExtractHash(newPath)
+			oldHash := e.store.ExtractHash(oldPath)
+			newHash := e.store.ExtractHash(newPath)
 			if oldHash != "" && newHash != "" && strings.Contains(target, oldHash) {
 				newTarget = strings.ReplaceAll(newTarget, oldHash, newHash)
 				modified = true

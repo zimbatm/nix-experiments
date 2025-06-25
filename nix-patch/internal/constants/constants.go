@@ -2,8 +2,6 @@
 package constants
 
 const (
-	// DefaultNixStore is the default base path for the Nix store
-	DefaultNixStore = "/nix/store"
 	
 	// TempDirPrefix is the prefix for temporary directories created by nix-patch
 	TempDirPrefix = "nix-patch-*"

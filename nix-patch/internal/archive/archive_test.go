@@ -224,7 +224,8 @@ func TestContentBasedHashGeneration(t *testing.T) {
 		oldPath := "/nix/store/abc123def456ghi789jkl012mno345p-test-package-1.0"
 		
 		// Parse the old path to extract the name
-		sp, err := store.ParseStorePath(oldPath)
+		s := store.New("") // Default store
+		sp, err := s.ParseStorePath(oldPath)
 		if err != nil {
 			t.Fatalf("Failed to parse store path: %v", err)
 		}

@@ -5,8 +5,8 @@ This directory contains integration tests and utilities for testing nix-patch wi
 ## Test Environment Setup
 
 The `setup_test_env.sh` script creates an isolated test environment with:
-- Custom store directory (`/tmp/nix-patch-test/store`)
-- Custom profile directory (`/tmp/nix-patch-test/var/nix/profiles`)
+- Custom store directory (`/tmp/nix-patch-test/nix/store`)
+- Custom profile directory (`/tmp/nix-patch-test/nix/var/nix/profiles`)
 - Mock store items for testing various scenarios
 - Environment configuration script
 
@@ -28,8 +28,8 @@ The `setup_test_env.sh` script creates an isolated test environment with:
    ./test/setup_test_env.sh list
 
    # Edit a file in the test store
-   nix-patch --system=profile --profile=$TEST_PROFILE \
-     /tmp/nix-patch-test/store/*-config-1.0/etc/app.conf
+   nix-patch --store $TEST_STORE_ROOT --system=profile --profile=$TEST_PROFILE \
+     /tmp/nix-patch-test/nix/store/*-config-1.0/etc/app.conf
    ```
 
 4. **Clean up when done:**
@@ -89,7 +89,7 @@ go test -v -run TestBasicFileEdit ./internal/integration/...
 The test environment creates mock store items:
 
 ```
-/tmp/nix-patch-test/store/
+/tmp/nix-patch-test/nix/store/
 ├── <hash>-config-1.0/          # Configuration package
 │   └── etc/app.conf
 ├── <hash>-scripts-1.0/         # Scripts package
@@ -115,23 +115,23 @@ The test environment creates mock store items:
 
 1. **Inspect test store:**
    ```bash
-   find /tmp/nix-patch-test/store -type f -name "*.conf" | xargs cat
+   find /tmp/nix-patch-test/nix/store -type f -name "*.conf" | xargs cat
    ```
 
 2. **Check profile structure:**
    ```bash
-   ls -la /tmp/nix-patch-test/var/nix/profiles/
+   ls -la /tmp/nix-patch-test/nix/var/nix/profiles/
    ```
 
 3. **Verify environment:**
    ```bash
    source /tmp/nix-patch-test/env.sh
-   echo $NIX_STORE_DIR  # Should show test store path
+   echo $TEST_STORE_ROOT  # Should show test root path
    ```
 
 4. **Test with verbose logging:**
    ```bash
-   nix-patch --verbose --dry-run --system=profile \
+   nix-patch --store $TEST_STORE_ROOT --verbose --dry-run --system=profile \
      --profile=$TEST_PROFILE <store-path>
    ```
 
@@ -140,7 +140,7 @@ The test environment creates mock store items:
 When adding new integration tests:
 
 1. Use `NewTestEnvironment(t)` to create isolated environment
-2. Always call `defer env.Cleanup()` and `env.SetupEnvironmentVariables()`
+2. Always call `defer env.Cleanup()`
 3. Create store items with proper structure using helper methods
 4. Test both success and failure scenarios
 5. Verify the test doesn't touch system Nix paths
@@ -150,7 +150,6 @@ Example test structure:
 func TestNewScenario(t *testing.T) {
     env := NewTestEnvironment(t)
     defer env.Cleanup()
-    env.SetupEnvironmentVariables()
     
     t.Run("specific case", func(t *testing.T) {
         // Create test data
@@ -163,6 +162,7 @@ func TestNewScenario(t *testing.T) {
             Editor:      "sed -i 's/old/new/g'",
             SystemType:  "profile",
             ProfilePath: env.profile,
+            StoreRoot:   env.tempDir,  // Use test store root
             // ...
         }
         

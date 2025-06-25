@@ -26,7 +26,7 @@ func Execute() error {
 	flag.StringVar(&cfg.SystemType, "system", "", "override detected system type (nixos, nix-darwin, home-manager, system-manager, profile)")
 	flag.StringVar(&cfg.ProfilePath, "profile", "", "path to custom profile (defaults to user profile when using -system=profile)")
 	flag.StringVar(&cfg.ActivationCommand, "activate", "", "custom activation command (e.g., 'nixos-rebuild switch')")
-	flag.StringVar(&cfg.StoreDir, "store-dir", cfg.StoreDir, "path to Nix store (defaults to /nix/store)")
+	flag.StringVar(&cfg.StoreRoot, "store", cfg.StoreRoot, "root directory for Nix store (e.g., ./foo for ./foo/nix/store)")
 
 	flag.Usage = showUsage
 
@@ -47,7 +47,7 @@ func Execute() error {
 	}
 
 	// Create store instance
-	s := store.New(cfg.StoreDir)
+	s := store.New(cfg.StoreRoot)
 	
 	// Check if user is trusted
 	trusted, err := s.IsTrustedUser()
@@ -102,6 +102,9 @@ Examples:
 
   # Edit a specific profile
   %s --system=profile --profile=/nix/var/nix/profiles/system /nix/store/...-config/etc/config.conf
-`, os.Args[0], os.Args[0], os.Args[0])
+
+  # Use a custom store location
+  %s --store ./mystore /nix/store/...-package/bin/app
+`, os.Args[0], os.Args[0], os.Args[0], os.Args[0])
 }
 

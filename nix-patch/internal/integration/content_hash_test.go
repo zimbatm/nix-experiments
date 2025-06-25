@@ -14,10 +14,9 @@ import (
 func TestContentBasedHashing(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	env.SetupEnvironmentVariables()
 	
 	// Create store instance for tests
-	s := store.New(env.storeDir)
+	s := store.New(env.tempDir) // Pass root directory, not store directory
 
 	t.Run("archive.Create generates new hash for modified content", func(t *testing.T) {
 		// Create a simple store item
