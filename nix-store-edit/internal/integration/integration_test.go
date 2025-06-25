@@ -1,15 +1,18 @@
 package integration_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
-	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/integration"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/patch"
 )
 
 // TestEnvironment encapsulates a custom Nix environment for testing
@@ -33,26 +36,94 @@ func NewTestEnvironment(t *testing.T) *TestEnvironment {
 		profile:    filepath.Join(tempDir, "nix", "var", "nix", "profiles", "test-profile"),
 	}
 	
-	// Create directories
+	// Create directories for the Nix store
 	must(t, os.MkdirAll(env.storeDir, 0755))
 	must(t, os.MkdirAll(env.profileDir, 0755))
+	must(t, os.MkdirAll(filepath.Join(tempDir, "nix", "var", "nix", "db"), 0755))
+	must(t, os.MkdirAll(filepath.Join(tempDir, "nix", "var", "log", "nix"), 0755))
+	
+	// Initialize a minimal Nix store database
+	// Create an empty Nix database file (this is a simplified version)
+	dbPath := filepath.Join(tempDir, "nix", "var", "nix", "db", "db.sqlite")
+	_, err := os.Create(dbPath)
+	must(t, err)
+	
+	// Initialize the store with some basic derivations
+	env.initializeStore()
 	
 	return env
 }
 
-// CreateStoreItem creates a test item in the custom store
+// BuildDerivation builds a Nix derivation and returns the output path
+func (e *TestEnvironment) BuildDerivation(nixFile string) string {
+	// Get the fixtures directory
+	fixturesDir := filepath.Join("fixtures", nixFile)
+	
+	// Build the derivation with our custom store
+	cmd := exec.Command("nix-build", "--store", e.tempDir, fixturesDir, "--no-out-link")
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			e.t.Fatalf("Failed to build derivation %s: %v\nStderr: %s", nixFile, err, exitErr.Stderr)
+		}
+		e.t.Fatalf("Failed to build derivation %s: %v", nixFile, err)
+	}
+	
+	// The output is the store path (last line of output)
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	storePath := lines[len(lines)-1]
+	
+	// Convert /nix/store path to our custom store path
+	if strings.HasPrefix(storePath, "/nix/store/") {
+		relativePath := strings.TrimPrefix(storePath, "/nix/store/")
+		customPath := filepath.Join(e.storeDir, relativePath)
+		// Always return the custom store path for test consistency
+		return customPath
+	}
+	
+	return storePath
+}
+
+// CreateStoreItem creates a simple text file derivation for backwards compatibility
 func (e *TestEnvironment) CreateStoreItem(name, content string) string {
-	// Create a mock store path with proper Nix store format
-	hash := fmt.Sprintf("%032x", time.Now().UnixNano()) // Mock hash
-	itemPath := filepath.Join(e.storeDir, fmt.Sprintf("%s-%s", hash[:32], name))
+	// Create a temporary nix file that produces the desired content
+	tmpNix := filepath.Join(e.tempDir, fmt.Sprintf("%s.nix", name))
+	nixContent := fmt.Sprintf(`
+derivation {
+  name = "%s";
+  system = builtins.currentSystem;
+  builder = "/bin/sh";
+  args = [ "-c" "echo -n '%s' > $out" ];
+}
+`, name, content)
+	must(e.t, os.WriteFile(tmpNix, []byte(nixContent), 0644))
 	
-	must(e.t, os.MkdirAll(itemPath, 0755))
+	// Build it with the custom store
+	cmd := exec.Command("nix-build", "--store", e.tempDir, tmpNix, "--no-out-link")
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			e.t.Fatalf("Failed to build store item: %v\nStderr: %s", err, exitErr.Stderr)
+		}
+		e.t.Fatalf("Failed to build store item: %v", err)
+	}
 	
-	// Create the actual file
-	filePath := filepath.Join(itemPath, "file.txt")
-	must(e.t, os.WriteFile(filePath, []byte(content), 0644))
+	// Clean up temp file
+	os.Remove(tmpNix)
 	
-	return filePath
+	// The output is the store path (last line of output)
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	storePath := lines[len(lines)-1]
+	
+	// Convert /nix/store path to our custom store path
+	if strings.HasPrefix(storePath, "/nix/store/") {
+		relativePath := strings.TrimPrefix(storePath, "/nix/store/")
+		customPath := filepath.Join(e.storeDir, relativePath)
+		// Always return the custom store path for test consistency
+		return customPath
+	}
+	
+	return storePath
 }
 
 // CreateComplexStoreStructure creates a more complex store item with multiple files
@@ -82,23 +153,29 @@ func (e *TestEnvironment) CreateProfileWithClosure(items ...string) {
 	// Remove existing profile if it exists
 	os.Remove(e.profile)
 	
-	// Create a simple closure by symlinking to the first item
-	// In real Nix, this would be more complex with proper derivations
-	must(e.t, os.Symlink(items[0], e.profile))
-	
-	// Create a mock manifest.nix that references all items
-	manifestPath := filepath.Join(filepath.Dir(items[0]), "manifest.nix")
-	manifest := "[\n"
-	for _, item := range items {
-		manifest += fmt.Sprintf("  { path = \"%s\"; }\n", item)
+	// Get the directory of the first item to use as profile target
+	profileTarget := items[0]
+	if strings.Contains(profileTarget, "/file.txt") {
+		profileTarget = filepath.Dir(profileTarget)
 	}
-	manifest += "]\n"
-	must(e.t, os.WriteFile(manifestPath, []byte(manifest), 0644))
+	
+	// Create a simple closure by symlinking to the first item
+	must(e.t, os.Symlink(profileTarget, e.profile))
 }
 
-// Cleanup cleans up environment variables
+// Cleanup cleans up environment variables and makes store items writable for deletion
 func (e *TestEnvironment) Cleanup() {
-	// No environment cleanup needed
+	// Make store items writable so they can be deleted
+	if _, err := os.Stat(e.storeDir); err == nil {
+		filepath.Walk(e.storeDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			// Make everything writable
+			os.Chmod(path, 0755)
+			return nil
+		})
+	}
 }
 
 // CreateConfig creates a config with test environment settings
@@ -116,31 +193,30 @@ func TestBasicFileEdit(t *testing.T) {
 	defer env.Cleanup()
 	
 	t.Run("edit text file in custom store", func(t *testing.T) {
-		// Create a store item
-		filePath := env.CreateStoreItem("config", "original content")
-		env.CreateProfileWithClosure(filepath.Dir(filePath))
+		// Build a minimal file derivation (no nixpkgs needed)
+		simpleFile := env.BuildDerivation("minimal.nix")
+		env.CreateProfileWithClosure(simpleFile)
 		
 		cfg := env.CreateConfig()
-		cfg.Path = filePath
+		cfg.Path = simpleFile
 		cfg.Editor = "sed -i 's/original/modified/g'" // Use sed as editor for testing
 		cfg.SystemType = "profile"
 		cfg.ProfilePath = env.profile
 		cfg.DryRun = false
 		
-		err := integration.RunMockPatch(cfg)
+		err := patch.Run(cfg)
 		if err != nil {
 			t.Fatalf("Failed to edit file: %v", err)
 		}
 		
-		// Verify the content was changed
-		// Note: In real implementation, the file would be in a new store path
-		// This is a simplified test
+		// The edit should have created a new store path with modified content
 	})
 	
 	t.Run("dry-run doesn't modify store", func(t *testing.T) {
+		// Build a simple file
 		filePath := env.CreateStoreItem("config", "do not modify")
 		originalContent := mustReadFile(t, filePath)
-		env.CreateProfileWithClosure(filepath.Dir(filePath))
+		env.CreateProfileWithClosure(filePath)
 		
 		cfg := env.CreateConfig()
 		cfg.Path = filePath
@@ -149,7 +225,7 @@ func TestBasicFileEdit(t *testing.T) {
 		cfg.ProfilePath = env.profile
 		cfg.DryRun = true
 		
-		err := integration.RunMockPatch(cfg)
+		err := patch.Run(cfg)
 		if err != nil {
 			t.Fatalf("Dry-run failed: %v", err)
 		}
@@ -167,59 +243,49 @@ func TestComplexRewriteScenarios(t *testing.T) {
 	defer env.Cleanup()
 	
 	t.Run("edit file with dependencies", func(t *testing.T) {
-		// Create interdependent store items
-		configPath := env.CreateStoreItem("app-config", "database=/old/path/db.sock")
+		// Build a minimal derivation with dependencies
+		appPath := env.BuildDerivation("minimal-with-deps.nix")
+		env.CreateProfileWithClosure(appPath)
 		
-		// Create an app that references the config
-		appItem := env.CreateComplexStoreStructure("app")
-		appBin := filepath.Join(appItem, "bin", "program")
-		must(t, os.WriteFile(appBin, []byte(fmt.Sprintf("#!/bin/sh\n. %s\necho $database", configPath)), 0755))
-		
-		env.CreateProfileWithClosure(appItem, filepath.Dir(configPath))
+		// Find the config file within the app closure
+		configFile := filepath.Join(appPath, "app-config")
 		
 		cfg := env.CreateConfig()
-		cfg.Path = configPath
-		cfg.Editor = "sed -i 's|/old/path|/new/path|g'"
+		cfg.Path = configFile
+		cfg.Editor = "sed -i 's|localhost|127.0.0.1|g'"
 		cfg.SystemType = "profile"
 		cfg.ProfilePath = env.profile
 		cfg.DryRun = false
 		
-		err := integration.RunMockPatch(cfg)
+		err := patch.Run(cfg)
 		if err != nil {
 			t.Fatalf("Failed to edit file with dependencies: %v", err)
 		}
 		
-		// In a real test, we'd verify that:
-		// 1. A new store path was created for the edited config
-		// 2. The app was rewritten to reference the new config path
-		// 3. The profile was updated to point to the new closure
+		// The system should have created a new closure with updated dependencies
 	})
 	
 	t.Run("circular dependency handling", func(t *testing.T) {
-		// Create two items that reference each other
-		item1 := env.CreateStoreItem("item1", "ref to item2: ITEM2_PATH")
-		item2 := env.CreateStoreItem("item2", fmt.Sprintf("ref to item1: %s", item1))
+		// Build the minimal circular deps test fixture
+		// Note: Nix prevents true circular dependencies, but we can test
+		// a closure where multiple items reference each other
+		circularPath := env.BuildDerivation("minimal-circular.nix")
+		env.CreateProfileWithClosure(circularPath)
 		
-		// Update item1 to reference item2
-		content1 := mustReadFile(t, item1)
-		must(t, os.WriteFile(item1, []byte(strings.Replace(content1, "ITEM2_PATH", item2, 1)), 0644))
+		// Find a config file to edit
+		configA := filepath.Join(circularPath, "config-a")
 		
-		env.CreateProfileWithClosure(filepath.Dir(item1), filepath.Dir(item2))
+		cfg := env.CreateConfig()
+		cfg.Path = configA
+		cfg.Editor = "sed -i 's/Config A/Configuration A/g'"
+		cfg.SystemType = "profile"
+		cfg.ProfilePath = env.profile
+		cfg.DryRun = false
 		
-		cfg := &config.Config{
-			Path:        item1,
-			Editor:      "sed -i 's/ref/reference/g'",
-			SystemType:  "profile",
-			ProfilePath: env.profile,
-			DryRun:      false,
-			Timeout:     30 * time.Second,
-		}
-		
-		// Should handle circular dependencies gracefully
-		err := integration.RunMockPatch(cfg)
+		// Should handle complex dependency graphs gracefully
+		err := patch.Run(cfg)
 		if err != nil {
-			// Some errors are expected for circular deps
-			t.Logf("Circular dependency test result: %v", err)
+			t.Fatalf("Failed to handle circular deps: %v", err)
 		}
 	})
 }
@@ -238,7 +304,7 @@ func TestErrorScenarios(t *testing.T) {
 			Timeout:     30 * time.Second,
 		}
 		
-		err := integration.RunMockPatch(cfg)
+		err := patch.Run(cfg)
 		if err == nil {
 			t.Fatal("Expected error when editing non-existent file")
 		}
@@ -258,7 +324,7 @@ func TestErrorScenarios(t *testing.T) {
 			Timeout:     30 * time.Second,
 		}
 		
-		err := integration.RunMockPatch(cfg)
+		err := patch.Run(cfg)
 		if err == nil {
 			t.Fatal("Expected error when editing file outside store")
 		}
@@ -277,7 +343,7 @@ func TestErrorScenarios(t *testing.T) {
 			Timeout:     1 * time.Second,
 		}
 		
-		err := integration.RunMockPatch(cfg)
+		err := patch.Run(cfg)
 		if err == nil {
 			t.Fatal("Expected timeout error")
 		}
@@ -301,7 +367,7 @@ func TestEdgeCases(t *testing.T) {
 			Timeout:     30 * time.Second,
 		}
 		
-		err := integration.RunMockPatch(cfg)
+		err := patch.Run(cfg)
 		if err != nil {
 			t.Logf("Empty file edit result: %v", err)
 		}
@@ -327,7 +393,7 @@ func TestEdgeCases(t *testing.T) {
 			Timeout:     30 * time.Second,
 		}
 		
-		err := integration.RunMockPatch(cfg)
+		err := patch.Run(cfg)
 		if err != nil {
 			t.Logf("Symlink edit result: %v", err)
 		}
@@ -348,7 +414,7 @@ func TestEdgeCases(t *testing.T) {
 			Timeout:     30 * time.Second,
 		}
 		
-		err := integration.RunMockPatch(cfg)
+		err := patch.Run(cfg)
 		if err != nil {
 			t.Logf("Large file edit result: %v", err)
 		}
@@ -377,7 +443,7 @@ func TestActivationScenarios(t *testing.T) {
 			Timeout:           30 * time.Second,
 		}
 		
-		err := integration.RunMockPatch(cfg)
+		err := patch.Run(cfg)
 		if err != nil {
 			t.Logf("Custom activation result: %v", err)
 		}
@@ -402,7 +468,7 @@ func TestActivationScenarios(t *testing.T) {
 			Timeout:           30 * time.Second,
 		}
 		
-		err := integration.RunMockPatch(cfg)
+		err := patch.Run(cfg)
 		if err == nil {
 			t.Fatal("Expected error from failed activation command")
 		}
@@ -423,4 +489,17 @@ func mustReadFile(t *testing.T, path string) string {
 	content, err := os.ReadFile(path)
 	must(t, err)
 	return string(content)
+}
+
+// generateHash generates a SHA256 hash similar to Nix store hashes
+func generateHash(input string) string {
+	h := sha256.New()
+	h.Write([]byte(input))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// initializeStore sets up the Nix store database
+func (e *TestEnvironment) initializeStore() {
+	// The store is initialized when we first use nix-build with --store flag
+	// No need to manually create items here
 }

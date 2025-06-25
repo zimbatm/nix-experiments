@@ -6,9 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/patch"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/system"
 )
@@ -58,14 +56,12 @@ func TestProfileSystemIntegration(t *testing.T) {
 			must(t, os.Symlink(item, env.profile))
 			
 			// Test editing in this generation
-			cfg := &config.Config{
-				Path:        filepath.Join(item, "file.txt"),
-				Editor:      fmt.Sprintf("sed -i 's/generation %d/GENERATION %d/g'", i+1, i+1),
-				SystemType:  "profile",
-				ProfilePath: env.profile,
-				DryRun:      false,
-				Timeout:     30 * time.Second,
-			}
+			cfg := env.CreateConfig()
+			cfg.Path = filepath.Join(item, "file.txt")
+			cfg.Editor = fmt.Sprintf("sed -i 's/generation %d/GENERATION %d/g'", i+1, i+1)
+			cfg.SystemType = "profile"
+			cfg.ProfilePath = env.profile
+			cfg.DryRun = false
 			
 			err := patch.Run(cfg)
 			if err != nil {
@@ -85,14 +81,12 @@ func TestProfileEdgeCases(t *testing.T) {
 		brokenTarget := filepath.Join(env.tempDir, "nonexistent")
 		must(t, os.Symlink(brokenTarget, env.profile))
 		
-		cfg := &config.Config{
-			Path:        "/some/path",
-			Editor:      "vim",
-			SystemType:  "profile",
-			ProfilePath: env.profile,
-			DryRun:      false,
-			Timeout:     30 * time.Second,
-		}
+		cfg := env.CreateConfig()
+		cfg.Path = "/some/path"
+		cfg.Editor = "vim"
+		cfg.SystemType = "profile"
+		cfg.ProfilePath = env.profile
+		cfg.DryRun = false
 		
 		err := patch.Run(cfg)
 		if err == nil {
@@ -108,14 +102,12 @@ func TestProfileEdgeCases(t *testing.T) {
 		must(t, os.Symlink(link2, link1))
 		must(t, os.Symlink(link1, link2))
 		
-		cfg := &config.Config{
-			Path:        "/some/path",
-			Editor:      "vim",
-			SystemType:  "profile",
-			ProfilePath: link1,
-			DryRun:      false,
-			Timeout:     30 * time.Second,
-		}
+		cfg := env.CreateConfig()
+		cfg.Path = "/some/path"
+		cfg.Editor = "vim"
+		cfg.SystemType = "profile"
+		cfg.ProfilePath = link1
+		cfg.DryRun = false
 		
 		err := patch.Run(cfg)
 		if err == nil {
@@ -137,14 +129,12 @@ func TestProfileEdgeCases(t *testing.T) {
 		// Final profile points to last link
 		must(t, os.Symlink(currentDir, env.profile))
 		
-		cfg := &config.Config{
-			Path:        current,
-			Editor:      "sed -i 's/content/CONTENT/g'",
-			SystemType:  "profile",
-			ProfilePath: env.profile,
-			DryRun:      false,
-			Timeout:     30 * time.Second,
-		}
+		cfg := env.CreateConfig()
+		cfg.Path = current
+		cfg.Editor = "sed -i 's/content/CONTENT/g'"
+		cfg.SystemType = "profile"
+		cfg.ProfilePath = env.profile
+		cfg.DryRun = false
 		
 		err := patch.Run(cfg)
 		if err != nil {
@@ -158,14 +148,12 @@ func TestProfileEdgeCases(t *testing.T) {
 		item := env.CreateStoreItem("space-test", "content with spaces")
 		must(t, os.Symlink(filepath.Dir(item), spaceProfile))
 		
-		cfg := &config.Config{
-			Path:        item,
-			Editor:      "sed -i 's/with spaces/WITHOUT_SPACES/g'",
-			SystemType:  "profile",
-			ProfilePath: spaceProfile,
-			DryRun:      false,
-			Timeout:     30 * time.Second,
-		}
+		cfg := env.CreateConfig()
+		cfg.Path = item
+		cfg.Editor = "sed -i 's/with spaces/WITHOUT_SPACES/g'"
+		cfg.SystemType = "profile"
+		cfg.ProfilePath = spaceProfile
+		cfg.DryRun = false
 		
 		err := patch.Run(cfg)
 		if err != nil {
@@ -192,14 +180,12 @@ func TestProfilePermissions(t *testing.T) {
 		must(t, os.Chmod(env.profileDir, 0555))
 		defer os.Chmod(env.profileDir, 0755) // Restore for cleanup
 		
-		cfg := &config.Config{
-			Path:        item,
-			Editor:      "sed -i 's/content/CONTENT/g'",
-			SystemType:  "profile",
-			ProfilePath: env.profile,
-			DryRun:      false,
-			Timeout:     30 * time.Second,
-		}
+		cfg := env.CreateConfig()
+		cfg.Path = item
+		cfg.Editor = "sed -i 's/content/CONTENT/g'"
+		cfg.SystemType = "profile"
+		cfg.ProfilePath = env.profile
+		cfg.DryRun = false
 		
 		err := patch.Run(cfg)
 		if err == nil {
@@ -221,14 +207,12 @@ func TestProfilePermissions(t *testing.T) {
 			os.Chmod(item, 0644)
 		}()
 		
-		cfg := &config.Config{
-			Path:        item,
-			Editor:      "sed -i 's/readonly/READONLY/g'",
-			SystemType:  "profile",
-			ProfilePath: env.profile,
-			DryRun:      false,
-			Timeout:     30 * time.Second,
-		}
+		cfg := env.CreateConfig()
+		cfg.Path = item
+		cfg.Editor = "sed -i 's/readonly/READONLY/g'"
+		cfg.SystemType = "profile"
+		cfg.ProfilePath = env.profile
+		cfg.DryRun = false
 		
 		// Should handle read-only gracefully by creating new store item
 		err := patch.Run(cfg)
@@ -281,14 +265,12 @@ mv "$file.tmp" "$file"
 				editor = tt.setup(env.tempDir)
 			}
 			
-			cfg := &config.Config{
-				Path:        item,
-				Editor:      editor,
-				SystemType:  "profile",
-				ProfilePath: env.profile,
-				DryRun:      false,
-				Timeout:     30 * time.Second,
-			}
+			cfg := env.CreateConfig()
+			cfg.Path = item
+			cfg.Editor = editor
+			cfg.SystemType = "profile"
+			cfg.ProfilePath = env.profile
+			cfg.DryRun = false
 			
 			err := patch.Run(cfg)
 			if err != nil {

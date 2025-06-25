@@ -72,7 +72,9 @@ func (s *Store) execNixStore(args ...string) ([]byte, error) {
 
 // QueryReferences returns the references of a store path
 func (s *Store) QueryReferences(path string) ([]string, error) {
-	output, err := s.execNixStore("--query", "--references", path)
+	// Convert to standard path for nix-store command
+	standardPath := s.toStandardPath(path)
+	output, err := s.execNixStore("--query", "--references", standardPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query references: %w", err)
 	}
@@ -86,7 +88,9 @@ func (s *Store) QueryReferences(path string) ([]string, error) {
 
 // Dump creates a NAR dump of the given path
 func (s *Store) Dump(path string) ([]byte, error) {
-	output, err := s.execNixStore("--dump", path)
+	// Convert to standard path for nix-store command
+	standardPath := s.toStandardPath(path)
+	output, err := s.execNixStore("--dump", standardPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dump store path: %w", err)
 	}
@@ -104,11 +108,16 @@ func (s *Store) Import(narData []byte) (string, error) {
 	
 	cmd := exec.Command("nix-store", args...)
 	cmd.Stdin = bytes.NewReader(narData)
-	output, err := cmd.Output()
+	
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	
+	err := cmd.Run()
 	if err != nil {
-		return "", fmt.Errorf("failed to import to store: %w", err)
+		return "", fmt.Errorf("failed to import to store: %w\nstderr: %s", err, stderr.String())
 	}
-	return strings.TrimSpace(string(output)), nil
+	return strings.TrimSpace(stdout.String()), nil
 }
 
 // IsStorePath checks if a path is in this store
@@ -181,8 +190,30 @@ func (s *Store) WhyDepends(from, to string, all bool) ([]byte, error) {
 	if all {
 		args = append(args, "--all")
 	}
-	args = append(args, from, to)
+	
+	// Convert custom store paths to standard paths for nix commands
+	fromPath := s.toStandardPath(from)
+	toPath := s.toStandardPath(to)
+	
+	args = append(args, fromPath, toPath)
 	
 	return s.execNix(args...)
 }
+
+// toStandardPath converts a custom store path to standard /nix/store format
+func (s *Store) toStandardPath(path string) string {
+	if s.RootDir == "" {
+		return path
+	}
+	
+	// If it's in our custom store, convert to standard path
+	if strings.HasPrefix(path, s.StoreDir+"/") {
+		// Extract the store item part (hash-name)
+		relPath := strings.TrimPrefix(path, s.StoreDir+"/")
+		return "/nix/store/" + relPath
+	}
+	
+	return path
+}
+
 

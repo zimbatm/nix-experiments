@@ -12,7 +12,6 @@ import (
 
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/archive"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
-	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/constants"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/editor"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/nar"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/rewrite"
@@ -45,7 +44,7 @@ func Run(cfg *config.Config) error {
 	}
 
 	// Step 4: Parse path components
-	pathComponents, err := parseStorePath(targetPath)
+	pathComponents, err := parseStorePath(targetPath, s)
 	if err != nil {
 		return err
 	}
@@ -66,6 +65,8 @@ func Run(cfg *config.Config) error {
 
 	// Step 7: Build dependency graph and verify path is in closure
 	log.Println("Building dependency graph...")
+	log.Printf("System closure: %s", systemClosure)
+	log.Printf("Target store path: %s", pathComponents.storePath)
 	_, closureChain, affectedPaths, err := s.BuildDependencyChain(systemClosure, pathComponents.storePath)
 	if err != nil {
 		return err
@@ -160,36 +161,54 @@ type pathComponents struct {
 }
 
 // parseStorePath splits a path into its store and file components
-func parseStorePath(targetPath string) (*pathComponents, error) {
+func parseStorePath(targetPath string, s *store.Store) (*pathComponents, error) {
 	targetInfo, err := os.Stat(targetPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat target path: %w", err)
 	}
 
-	parts := strings.SplitN(targetPath, "/", 5)
 	pc := &pathComponents{}
 	
-	if targetInfo.IsDir() || len(parts) > constants.StorePathComponents {
-		// If it's a directory or has subdirectories, use the standard logic
-		pc.storePath = strings.Join(parts[:constants.StorePathComponents], "/")
-		if len(parts) > constants.StorePathComponents {
-			pc.filePath = parts[constants.StorePathComponents]
-		}
-		// Extract derivation name
-		nameWithHash := parts[3]
-		nameParts := strings.Split(nameWithHash, "-")
+	// Find the store path boundary
+	if !s.IsStorePath(targetPath) {
+		return nil, fmt.Errorf("not a store path: %s", targetPath)
+	}
+	
+	// Extract the store item path (everything up to and including hash-name)
+	storeDir := s.StoreDir
+	if !strings.HasPrefix(targetPath, storeDir+"/") {
+		return nil, fmt.Errorf("path %s is not in store directory %s", targetPath, storeDir)
+	}
+	
+	// Get the relative path from store directory
+	relPath := targetPath[len(storeDir)+1:]
+	
+	// Find the first component (hash-name)
+	firstSlash := strings.Index(relPath, "/")
+	var storeItem string
+	if firstSlash == -1 {
+		// It's a direct store item
+		storeItem = relPath
+		pc.filePath = ""
+	} else {
+		// It has subpaths
+		storeItem = relPath[:firstSlash]
+		pc.filePath = relPath[firstSlash+1:]
+	}
+	
+	pc.storePath = filepath.Join(storeDir, storeItem)
+	
+	// Extract derivation name from store item
+	nameParts := strings.Split(storeItem, "-")
+	if len(nameParts) > 1 {
 		pc.drvName = strings.Join(nameParts[1:], "-")
 	} else {
-		// If it's a file in the store root, the whole path is the store path
-		pc.storePath = targetPath
-		pc.filePath = ""
-		// Extract derivation name from the file
-		nameWithHash := parts[3]
-		nameParts := strings.Split(nameWithHash, "-")
-		// Remove the hash prefix to get the actual name
-		fullName := strings.Join(nameParts[1:], "-")
-		// For files, we need to use a directory name for extraction
-		pc.drvName = fullName + "-contents"
+		pc.drvName = storeItem
+	}
+	
+	// For single files, adjust the name
+	if !targetInfo.IsDir() && pc.filePath == "" {
+		pc.drvName = pc.drvName + "-contents"
 	}
 
 	return pc, nil
@@ -214,7 +233,7 @@ func (w *workspace) cleanup() {
 // createAndEditWorkspace creates a temporary workspace and opens it in the editor
 func createAndEditWorkspace(cfg *config.Config, pc *pathComponents, s *store.Store) (*workspace, bool, error) {
 	// Create workspace for editing
-	workDir, err := os.MkdirTemp("", constants.TempDirPrefix)
+	workDir, err := os.MkdirTemp("", "nix-patch-*")
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to create temp dir: %w", err)
 	}

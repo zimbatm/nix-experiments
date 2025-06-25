@@ -52,18 +52,21 @@ func CreateWithStore(oldPath, newPath string, s *store.Store) ([]byte, string, e
 	}
 
 	// Determine the store path to write
-	storePath := oldPath
+	var storePath string
+	
+	// Extract derivation name from old path
+	sp, err := s.ParseStorePath(oldPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to parse store path: %w", err)
+	}
+	
 	if oldPath != newPath {
 		// Content has been modified, generate a new store path
 		newHash := store.GenerateContentHash(narData)
-		
-		// Extract derivation name from old path
-		sp, err := s.ParseStorePath(oldPath)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to parse store path: %w", err)
-		}
-		
-		storePath = fmt.Sprintf("%s/%s-%s", s.StoreDir, newHash, sp.Name)
+		storePath = fmt.Sprintf("/nix/store/%s-%s", newHash, sp.Name)
+	} else {
+		// Use standard path even for unchanged content
+		storePath = fmt.Sprintf("/nix/store/%s-%s", sp.Hash, sp.Name)
 	}
 
 	// Path
