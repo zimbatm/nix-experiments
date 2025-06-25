@@ -26,6 +26,7 @@ func Execute() error {
 	flag.StringVar(&cfg.SystemType, "system", "", "override detected system type (nixos, nix-darwin, home-manager, system-manager, profile)")
 	flag.StringVar(&cfg.ProfilePath, "profile", "", "path to custom profile (defaults to user profile when using -system=profile)")
 	flag.StringVar(&cfg.ActivationCommand, "activate", "", "custom activation command (e.g., 'nixos-rebuild switch')")
+	flag.StringVar(&cfg.StoreDir, "store-dir", cfg.StoreDir, "path to Nix store (defaults to /nix/store)")
 
 	flag.Usage = showUsage
 
@@ -45,8 +46,11 @@ func Execute() error {
 		return errors.Wrap(err, errors.ErrCodeConfig, "validate")
 	}
 
+	// Create store instance
+	s := store.New(cfg.StoreDir)
+	
 	// Check if user is trusted
-	trusted, err := store.IsTrustedUser()
+	trusted, err := s.IsTrustedUser()
 	if err != nil {
 		// If we can't determine trust status, default to dry-run
 		fmt.Fprintf(os.Stderr, "Warning: Could not determine trusted user status: %s\n", err)

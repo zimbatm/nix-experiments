@@ -15,6 +15,9 @@ func TestContentBasedHashing(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
 	env.SetupEnvironmentVariables()
+	
+	// Create store instance for tests
+	s := store.New(env.storeDir)
 
 	t.Run("archive.Create generates new hash for modified content", func(t *testing.T) {
 		// Create a simple store item
@@ -31,13 +34,13 @@ func TestContentBasedHashing(t *testing.T) {
 		}
 
 		// Create archive with original path but modified content
-		narData, expectedPath, err := archive.Create(item, modifiedPath)
+		narData, expectedPath, err := archive.CreateWithStore(item, modifiedPath, s)
 		if err != nil {
 			t.Fatalf("Failed to create archive: %v", err)
 		}
 
 		// Import the archive and check the path
-		importedPath, err := store.Import(narData)
+		importedPath, err := s.Import(narData)
 		if err != nil {
 			t.Fatalf("Failed to import archive: %v", err)
 		}
@@ -73,13 +76,13 @@ func TestContentBasedHashing(t *testing.T) {
 		item := env.CreateStoreItem("unchanged-package", content)
 
 		// Create archive with same path (no modifications)
-		narData, expectedPath, err := archive.Create(item, item)
+		narData, expectedPath, err := archive.CreateWithStore(item, item, s)
 		if err != nil {
 			t.Fatalf("Failed to create archive: %v", err)
 		}
 
 		// Import should return the same path
-		importedPath, err := store.Import(narData)
+		importedPath, err := s.Import(narData)
 		if err != nil {
 			t.Fatalf("Failed to import archive: %v", err)
 		}
@@ -115,12 +118,12 @@ func TestContentBasedHashing(t *testing.T) {
 		dummyOriginal := filepath.Join(env.storeDir, "dummy-hash-deterministic-package")
 		
 		// Create archives from both paths
-		narData1, expectedPath1, err := archive.Create(dummyOriginal, path1)
+		narData1, expectedPath1, err := archive.CreateWithStore(dummyOriginal, path1, s)
 		if err != nil {
 			t.Fatalf("Failed to create archive 1: %v", err)
 		}
 
-		narData2, expectedPath2, err := archive.Create(dummyOriginal, path2)
+		narData2, expectedPath2, err := archive.CreateWithStore(dummyOriginal, path2, s)
 		if err != nil {
 			t.Fatalf("Failed to create archive 2: %v", err)
 		}
@@ -131,12 +134,12 @@ func TestContentBasedHashing(t *testing.T) {
 		}
 
 		// Import both archives
-		imported1, err := store.Import(narData1)
+		imported1, err := s.Import(narData1)
 		if err != nil {
 			t.Fatalf("Failed to import archive 1: %v", err)
 		}
 
-		imported2, err := store.Import(narData2)
+		imported2, err := s.Import(narData2)
 		if err != nil {
 			t.Fatalf("Failed to import archive 2: %v", err)
 		}
@@ -213,13 +216,13 @@ func TestContentBasedHashing(t *testing.T) {
 		}
 
 		// Create archive with modifications
-		narData, expectedPath, err := archive.Create(item, modifiedDir)
+		narData, expectedPath, err := archive.CreateWithStore(item, modifiedDir, s)
 		if err != nil {
 			t.Fatalf("Failed to create archive: %v", err)
 		}
 
 		// Import and verify new path
-		importedPath, err := store.Import(narData)
+		importedPath, err := s.Import(narData)
 		if err != nil {
 			t.Fatalf("Failed to import archive: %v", err)
 		}

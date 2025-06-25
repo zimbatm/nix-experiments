@@ -108,6 +108,14 @@ func (e *TestEnvironment) Cleanup() {
 	os.Unsetenv("NIX_LOG_DIR")
 }
 
+// CreateConfig creates a config with test environment settings
+func (e *TestEnvironment) CreateConfig() *config.Config {
+	return &config.Config{
+		Timeout:  30 * time.Second,
+		StoreDir: e.storeDir,
+	}
+}
+
 // Test scenarios
 
 func TestBasicFileEdit(t *testing.T) {
@@ -120,14 +128,12 @@ func TestBasicFileEdit(t *testing.T) {
 		filePath := env.CreateStoreItem("config", "original content")
 		env.CreateProfileWithClosure(filepath.Dir(filePath))
 		
-		cfg := &config.Config{
-			Path:        filePath,
-			Editor:      "sed -i 's/original/modified/g'", // Use sed as editor for testing
-			SystemType:  "profile",
-			ProfilePath: env.profile,
-			DryRun:      false,
-			Timeout:     30 * time.Second,
-		}
+		cfg := env.CreateConfig()
+		cfg.Path = filePath
+		cfg.Editor = "sed -i 's/original/modified/g'" // Use sed as editor for testing
+		cfg.SystemType = "profile"
+		cfg.ProfilePath = env.profile
+		cfg.DryRun = false
 		
 		err := patch.Run(cfg)
 		if err != nil {

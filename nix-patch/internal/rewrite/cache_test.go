@@ -4,10 +4,13 @@ import (
 	"sync"
 	"testing"
 	"time"
+	
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
 func TestStoreCache_GetReferences(t *testing.T) {
-	cache := NewStoreCache()
+	s := store.New("/nix/store")
+	cache := NewStoreCacheWithStore(s)
 
 	// Test initial state
 	if len(cache.references) != 0 {
@@ -19,7 +22,8 @@ func TestStoreCache_GetReferences(t *testing.T) {
 }
 
 func TestStoreCache_Clear(t *testing.T) {
-	cache := NewStoreCache()
+	s := store.New("/nix/store")
+	cache := NewStoreCacheWithStore(s)
 
 	// Add some test data
 	cache.references["test-path"] = cacheEntry{
@@ -44,7 +48,8 @@ func TestStoreCache_Clear(t *testing.T) {
 }
 
 func TestStoreCache_Concurrency(t *testing.T) {
-	cache := NewStoreCache()
+	s := store.New("/nix/store")
+	cache := NewStoreCacheWithStore(s)
 
 	// Test concurrent access
 	var wg sync.WaitGroup

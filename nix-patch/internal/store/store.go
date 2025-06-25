@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/nix-community/go-nix/pkg/nixbase32"
@@ -35,9 +34,14 @@ func ExtractHash(path string) string {
 
 // IsStorePath checks if a path is in the nix store
 func IsStorePath(path string) bool {
+	return IsStorePathWithDir(path, constants.DefaultNixStore)
+}
+
+// IsStorePathWithDir checks if a path is in the specified nix store
+func IsStorePathWithDir(path, storeDir string) bool {
 	// For simple validation, just check the prefix
 	// go-nix's Validate is too strict for our use case
-	return strings.HasPrefix(path, constants.NixStorePrefix)
+	return strings.HasPrefix(path, storeDir+"/")
 }
 
 // GenerateHash generates a random nix32 hash
@@ -63,108 +67,6 @@ func GenerateContentHash(narData []byte) string {
 	return nixbase32.EncodeToString(hashBytes[:20])
 }
 
-// QueryReferences returns the references of a store path
-func QueryReferences(path string) ([]string, error) {
-	cmd := exec.Command("nix-store", "--query", "--references", path)
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("failed to query references: %w", err)
-	}
-
-	if len(output) == 0 {
-		return []string{}, nil
-	}
-
-	return strings.Split(strings.TrimSpace(string(output)), "\n"), nil
-}
-
-// QueryReferencesBatch returns the references for multiple store paths in a single call
-func QueryReferencesBatch(paths []string) (map[string][]string, error) {
-	if len(paths) == 0 {
-		return make(map[string][]string), nil
-	}
-
-	// Build command with all paths
-	args := append([]string{"--query", "--references"}, paths...)
-	cmd := exec.Command("nix-store", args...)
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("failed to query references: %w", err)
-	}
-
-	// Parse output - nix-store outputs references grouped by path
-	result := make(map[string][]string)
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	currentPath := ""
-
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		// Check if this line is a queried path (ends with colon)
-		if strings.HasSuffix(line, ":") {
-			currentPath = strings.TrimSuffix(line, ":")
-			result[currentPath] = []string{}
-		} else if currentPath != "" {
-			// This is a reference for the current path
-			result[currentPath] = append(result[currentPath], line)
-		}
-	}
-
-	// Fill in empty results for paths with no references
-	for _, path := range paths {
-		if _, exists := result[path]; !exists {
-			result[path] = []string{}
-		}
-	}
-
-	return result, nil
-}
-
-// QueryReferencesRecursive returns all transitive references of a store path
-func QueryReferencesRecursive(path string) ([]string, error) {
-	cmd := exec.Command("nix-store", "--query", "--requisites", path)
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("failed to query requisites: %w", err)
-	}
-
-	if len(output) == 0 {
-		return []string{}, nil
-	}
-
-	// The output includes the path itself, so we might want to filter it
-	allPaths := strings.Split(strings.TrimSpace(string(output)), "\n")
-	var result []string
-	for _, p := range allPaths {
-		if p != path {
-			result = append(result, p)
-		}
-	}
-
-	return result, nil
-}
-
-// Dump creates a NAR dump of the given path
-func Dump(path string) ([]byte, error) {
-	cmd := exec.Command("nix-store", "--dump", path)
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("failed to dump store path: %w", err)
-	}
-	return output, nil
-}
-
-// Import imports a NAR archive into the store
-func Import(narData []byte) (string, error) {
-	cmd := exec.Command("nix-store", "--import")
-	cmd.Stdin = strings.NewReader(string(narData))
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to import to store: %w", err)
-	}
-	return strings.TrimSpace(string(output)), nil
-}
 
 // ParseStorePath parses a nix store path and returns its components
 func ParseStorePath(path string) (*StorePathInfo, error) {

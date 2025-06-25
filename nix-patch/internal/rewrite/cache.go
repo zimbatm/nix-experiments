@@ -14,18 +14,20 @@ type StoreCache struct {
 	references map[string]cacheEntry
 	narData    map[string]cacheEntry
 	mu         sync.RWMutex
+	store      *store.Store
 }
 
 type cacheEntry struct {
-	data      interface{}
+	data      any
 	timestamp time.Time
 }
 
-// NewStoreCache creates a new cache instance
-func NewStoreCache() *StoreCache {
+// NewStoreCacheWithStore creates a new cache instance with a specific store
+func NewStoreCacheWithStore(s *store.Store) *StoreCache {
 	return &StoreCache{
 		references: make(map[string]cacheEntry),
 		narData:    make(map[string]cacheEntry),
+		store:      s,
 	}
 }
 
@@ -39,7 +41,7 @@ func (c *StoreCache) GetReferences(path string) ([]string, error) {
 	c.mu.RUnlock()
 
 	// Not in cache, query store
-	refs, err := store.QueryReferences(path)
+	refs, err := c.store.QueryReferences(path)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +67,7 @@ func (c *StoreCache) GetNARData(path string) ([]byte, error) {
 	c.mu.RUnlock()
 
 	// Not in cache, generate NAR
-	data, err := store.Dump(path)
+	data, err := c.store.Dump(path)
 	if err != nil {
 		return nil, err
 	}

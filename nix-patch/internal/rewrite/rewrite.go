@@ -6,6 +6,8 @@ import (
 	"log"
 	"sort"
 	"sync"
+	
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
 // Engine manages the rewriting of store paths and their dependencies
@@ -30,14 +32,33 @@ type Engine struct {
 
 	// dryRun mode - don't actually modify store
 	dryRun bool
+	
+	// storeDir is the path to the Nix store
+	storeDir string
+	
+	// store is the Nix store instance
+	store *store.Store
 }
 
 // NewEngine creates a new rewrite engine
 func NewEngine() *Engine {
+	return NewEngineWithStoreDir("/nix/store")
+}
+
+// NewEngineWithStoreDir creates a new rewrite engine with a custom store directory
+func NewEngineWithStoreDir(storeDir string) *Engine {
+	s := store.New(storeDir)
+	return NewEngineWithStore(s)
+}
+
+// NewEngineWithStore creates a new rewrite engine with a store instance
+func NewEngineWithStore(s *store.Store) *Engine {
 	return &Engine{
 		rewrites: make(map[string]string),
 		visited:  make(map[string]bool),
-		cache:    NewStoreCache(),
+		cache:    NewStoreCacheWithStore(s),
+		storeDir: s.StoreDir,
+		store:    s,
 	}
 }
 

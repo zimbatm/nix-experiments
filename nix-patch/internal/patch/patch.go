@@ -17,15 +17,16 @@ import (
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/rewrite"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/system"
-	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/whydepends"
 )
 
 
 
 // Run executes the patch operation on a Nix store path
 func Run(cfg *config.Config) error {
+	// Create store instance
+	s := store.New(cfg.StoreDir)
 	// Step 1: Validate and resolve target path
-	targetPath, err := validateTargetPath(cfg.Path)
+	targetPath, err := validateTargetPath(cfg.Path, cfg.StoreDir)
 	if err != nil {
 		return err
 	}
@@ -49,7 +50,7 @@ func Run(cfg *config.Config) error {
 	}
 
 	// Step 5: Create workspace and edit
-	workspace, hasChanges, err := createAndEditWorkspace(cfg, pathComponents)
+	workspace, hasChanges, err := createAndEditWorkspace(cfg, pathComponents, s)
 	if err != nil {
 		return err
 	}
@@ -64,7 +65,7 @@ func Run(cfg *config.Config) error {
 
 	// Step 7: Build dependency graph and verify path is in closure
 	log.Println("Building dependency graph...")
-	_, closureChain, affectedPaths, err := whydepends.BuildDependencyChain(systemClosure, pathComponents.storePath)
+	_, closureChain, affectedPaths, err := s.BuildDependencyChain(systemClosure, pathComponents.storePath)
 	if err != nil {
 		return err
 	}
@@ -74,7 +75,7 @@ func Run(cfg *config.Config) error {
 	log.Printf("closure_chain=%s", strings.Join(closureChain, " -> "))
 
 	// Create rewrite engine
-	engine := rewrite.NewEngine()
+	engine := rewrite.NewEngineWithStore(s)
 
 	// Set dry-run mode
 	engine.SetDryRun(cfg.DryRun)
@@ -85,7 +86,7 @@ func Run(cfg *config.Config) error {
 	})
 
 	// Step 8: Import modified path to store
-	modifiedStorePath, err := importModifiedPath(cfg, pathComponents, workspace.destPath)
+	modifiedStorePath, err := importModifiedPath(cfg, pathComponents, workspace.destPath, s)
 	if err != nil {
 		return err
 	}
@@ -111,13 +112,13 @@ func Run(cfg *config.Config) error {
 	return nil
 }
 
-// validateTargetPath ensures the given path is in the /nix/store
-func validateTargetPath(path string) (string, error) {
-	if !store.IsStorePath(path) {
+// validateTargetPath ensures the given path is in the nix store
+func validateTargetPath(path, storeDir string) (string, error) {
+	if !store.IsStorePathWithDir(path, storeDir) {
 		// Try to resolve symlink
 		resolvedPath, err := filepath.EvalSymlinks(path)
-		if err != nil || !store.IsStorePath(resolvedPath) {
-			return "", fmt.Errorf("%s is not in the /nix/store", path)
+		if err != nil || !store.IsStorePathWithDir(resolvedPath, storeDir) {
+			return "", fmt.Errorf("%s is not in the %s", path, storeDir)
 		}
 		return resolvedPath, nil
 	}
@@ -210,7 +211,7 @@ func (w *workspace) cleanup() {
 }
 
 // createAndEditWorkspace creates a temporary workspace and opens it in the editor
-func createAndEditWorkspace(cfg *config.Config, pc *pathComponents) (*workspace, bool, error) {
+func createAndEditWorkspace(cfg *config.Config, pc *pathComponents, s *store.Store) (*workspace, bool, error) {
 	// Create workspace for editing
 	workDir, err := os.MkdirTemp("", constants.TempDirPrefix)
 	if err != nil {
@@ -223,7 +224,7 @@ func createAndEditWorkspace(cfg *config.Config, pc *pathComponents) (*workspace,
 	}
 
 	// Get NAR data from store
-	narData, err := store.Dump(pc.storePath)
+	narData, err := s.Dump(pc.storePath)
 	if err != nil {
 		w.cleanup()
 		return nil, false, fmt.Errorf("failed to dump store path: %w", err)
@@ -284,9 +285,9 @@ func showDiff(oldPath, newPath string) {
 
 
 // importModifiedPath imports the modified path to the Nix store
-func importModifiedPath(cfg *config.Config, pc *pathComponents, destPath string) (string, error) {
+func importModifiedPath(cfg *config.Config, pc *pathComponents, destPath string, s *store.Store) (string, error) {
 	log.Println("Creating archive for modified path...")
-	narData, expectedStorePath, err := archive.Create(pc.storePath, destPath)
+	narData, expectedStorePath, err := archive.CreateWithStore(pc.storePath, destPath, s)
 	if err != nil {
 		return "", fmt.Errorf("failed to create archive: %w", err)
 	}
@@ -297,7 +298,7 @@ func importModifiedPath(cfg *config.Config, pc *pathComponents, destPath string)
 	}
 
 	log.Println("Importing modified path to store...")
-	importedStorePath, err := store.Import(narData)
+	importedStorePath, err := s.Import(narData)
 	if err != nil {
 		return "", fmt.Errorf("failed to import modified path: %w", err)
 	}

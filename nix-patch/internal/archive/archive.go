@@ -9,20 +9,18 @@ import (
 	"github.com/nix-community/go-nix/pkg/nar"
 	"github.com/nix-community/go-nix/pkg/wire"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
-	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/constants"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
-// Create creates a new Nix archive export format with the given path
-// This format is what nix-store --export produces
+// CreateWithStore creates a new Nix archive export format using the given store
 // Returns the archive data and the store path that will be created
-func Create(oldPath, newPath string) ([]byte, string, error) {
+func CreateWithStore(oldPath, newPath string, s *store.Store) ([]byte, string, error) {
 	if newPath == "" {
 		newPath = oldPath
 	}
 
 	// Get references
-	refs, err := store.QueryReferences(oldPath)
+	refs, err := s.QueryReferences(oldPath)
 	if err != nil {
 		return nil, "", err
 	}
@@ -65,7 +63,7 @@ func Create(oldPath, newPath string) ([]byte, string, error) {
 			return nil, "", fmt.Errorf("failed to parse store path: %w", err)
 		}
 		
-		storePath = fmt.Sprintf("%s/%s-%s", constants.NixStore, newHash, sp.Name)
+		storePath = fmt.Sprintf("%s/%s-%s", s.StoreDir, newHash, sp.Name)
 	}
 
 	// Path
@@ -101,9 +99,9 @@ func Create(oldPath, newPath string) ([]byte, string, error) {
 	return buf.Bytes(), storePath, nil
 }
 
-// CreateWithRewrites creates a new Nix archive with path rewrites applied
+// CreateWithRewritesAndStore creates a new Nix archive with path rewrites applied using the given store
 // Returns the archive data and the store path that will be created
-func CreateWithRewrites(oldPath, pathToAdd string, rewrites map[string]string) ([]byte, string, error) {
+func CreateWithRewritesAndStore(oldPath, pathToAdd string, rewrites map[string]string, s *store.Store) ([]byte, string, error) {
 	// Create NAR from the pathToAdd first to generate content-based hash
 	narBuf := &bytes.Buffer{}
 	if err := nar.DumpPath(narBuf, pathToAdd); err != nil {
@@ -120,13 +118,13 @@ func CreateWithRewrites(oldPath, pathToAdd string, rewrites map[string]string) (
 		return nil, "", fmt.Errorf("invalid store path: %w", err)
 	}
 
-	newPath := fmt.Sprintf("%s/%s-%s", constants.NixStore, newHash, sp.Name)
+	newPath := fmt.Sprintf("%s/%s-%s", s.StoreDir, newHash, sp.Name)
 
 	// Record the rewrite
 	rewrites[oldPath] = newPath
 
 	// Get references and apply rewrites
-	refs, err := store.QueryReferences(oldPath)
+	refs, err := s.QueryReferences(oldPath)
 	if err != nil {
 		return nil, "", err
 	}

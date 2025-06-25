@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// TestDependencyGraph has been removed since findAffectedPaths is now handled by whydepends package
+// TestDependencyGraph has been removed since findAffectedPaths is now handled by store package
 
 func TestTopologicalSort(t *testing.T) {
 	// For rewriting: if A depends on B, we need to rewrite B first

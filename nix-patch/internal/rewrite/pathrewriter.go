@@ -180,7 +180,7 @@ func (e *Engine) rewriteSymlink(linkPath string) error {
 // createNewStorePath creates a new store path from modified contents
 func (e *Engine) createNewStorePath(originalPath, contentsPath string) (string, error) {
 	// Create archive with the rewrite map
-	archiveData, newPath, err := archive.CreateWithRewrites(originalPath, contentsPath, e.rewrites)
+	archiveData, newPath, err := archive.CreateWithRewritesAndStore(originalPath, contentsPath, e.rewrites, e.store)
 	if err != nil {
 		return "", fmt.Errorf("failed to create archive: %w", err)
 	}
@@ -191,7 +191,7 @@ func (e *Engine) createNewStorePath(originalPath, contentsPath string) (string, 
 	}
 
 	// Import to store
-	importedPath, err := store.Import(archiveData)
+	importedPath, err := e.store.Import(archiveData)
 	if err != nil {
 		return "", fmt.Errorf("failed to import to store: %w", err)
 	}

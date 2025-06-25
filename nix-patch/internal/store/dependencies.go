@@ -1,11 +1,10 @@
-// Package whydepends provides functionality for analyzing Nix store dependencies
-package whydepends
+// Package store - dependencies.go provides dependency analysis functionality
+package store
 
 import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 )
@@ -21,7 +20,6 @@ func NewDependencyGraph() *DependencyGraph {
 		parents: make(map[string]string),
 	}
 }
-
 
 // FindPathToRoot finds the dependency chain from target to root
 func (dg *DependencyGraph) FindPathToRoot(target string) []string {
@@ -46,23 +44,20 @@ func (dg *DependencyGraph) FindPathToRoot(target string) []string {
 	return closureChain
 }
 
-
 // BuildDependencyChain builds the dependency graph and finds the closure chain
-func BuildDependencyChain(systemClosure, storePath string) (*DependencyGraph, []string, []string, error) {
+func (s *Store) BuildDependencyChain(systemClosure, storePath string) (*DependencyGraph, []string, []string, error) {
 	// Use nix why-depends --all to get the complete dependency information
-	cmd := exec.Command("nix", "why-depends", "--all", systemClosure, storePath)
-	output, err := cmd.CombinedOutput()
+	output, err := s.WhyDepends(systemClosure, storePath, true)
 	if err != nil {
 		// Check if the error is because the path is not in the closure
-		outputStr := string(output)
-		if strings.Contains(outputStr, "does not depend on") {
+		if strings.Contains(err.Error(), "does not depend on") {
 			return nil, nil, nil, fmt.Errorf("path %s is not part of system closure %s", storePath, systemClosure)
 		}
-		return nil, nil, nil, fmt.Errorf("failed to run nix why-depends: %w\nOutput: %s", err, outputStr)
+		return nil, nil, nil, fmt.Errorf("failed to run nix why-depends: %w", err)
 	}
 
 	// Parse the output to build dependency graph
-	dg, closureChain, affectedPaths, err := ParseWhyDependsOutput(string(output), systemClosure, storePath)
+	dg, closureChain, affectedPaths, err := parseWhyDependsOutput(string(output), systemClosure, storePath, s.StoreDir)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to parse why-depends output: %w", err)
 	}
@@ -70,8 +65,8 @@ func BuildDependencyChain(systemClosure, storePath string) (*DependencyGraph, []
 	return dg, closureChain, affectedPaths, nil
 }
 
-// ParseWhyDependsOutput parses the output of 'nix why-depends --all' to extract dependency information
-func ParseWhyDependsOutput(output, systemClosure, targetPath string) (*DependencyGraph, []string, []string, error) {
+// parseWhyDependsOutput parses the output of 'nix why-depends --all' to extract dependency information
+func parseWhyDependsOutput(output, systemClosure, targetPath, storeDir string) (*DependencyGraph, []string, []string, error) {
 	dg := NewDependencyGraph()
 	
 	// Track all paths that depend on the target
@@ -110,7 +105,7 @@ func ParseWhyDependsOutput(output, systemClosure, targetPath string) (*Dependenc
 		}
 		
 		// Extract the store path from the line
-		storePath := extractStorePath(line)
+		storePath := extractStorePathWithDir(line, storeDir)
 		if storePath == "" {
 			continue
 		}
@@ -166,15 +161,16 @@ func stripAnsiCodes(s string) string {
 	return re.ReplaceAllString(s, "")
 }
 
-// extractStorePath extracts a nix store path from a line
-func extractStorePath(line string) string {
-	// Find /nix/store/ in the line
-	idx := strings.Index(line, "/nix/store/")
+// extractStorePathWithDir extracts a nix store path from a line with custom store dir
+func extractStorePathWithDir(line, storeDir string) string {
+	// Find store dir in the line
+	storePrefix := storeDir + "/"
+	idx := strings.Index(line, storePrefix)
 	if idx == -1 {
 		return ""
 	}
 	
-	// Extract the path starting from /nix/store/
+	// Extract the path starting from store dir
 	path := line[idx:]
 	
 	// Find the end of the path (space or end of line)

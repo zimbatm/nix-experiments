@@ -12,7 +12,8 @@ func TestIsTrustedUser(t *testing.T) {
 		t.Skip("nix command not available")
 	}
 
-	trusted, err := IsTrustedUser()
+	s := New("/nix/store")
+	trusted, err := s.IsTrustedUser()
 	if err != nil {
 		// It's okay if this fails in test environment
 		t.Logf("IsTrustedUser() error: %v", err)
