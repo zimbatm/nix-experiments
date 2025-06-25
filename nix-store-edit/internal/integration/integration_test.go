@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
-	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/patch"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/integration"
 )
 
 // TestEnvironment encapsulates a custom Nix environment for testing
@@ -79,6 +79,9 @@ func (e *TestEnvironment) CreateProfileWithClosure(items ...string) {
 		e.t.Fatal("At least one store item required for profile")
 	}
 	
+	// Remove existing profile if it exists
+	os.Remove(e.profile)
+	
 	// Create a simple closure by symlinking to the first item
 	// In real Nix, this would be more complex with proper derivations
 	must(e.t, os.Symlink(items[0], e.profile))
@@ -101,8 +104,8 @@ func (e *TestEnvironment) Cleanup() {
 // CreateConfig creates a config with test environment settings
 func (e *TestEnvironment) CreateConfig() *config.Config {
 	return &config.Config{
-		Timeout:  30 * time.Second,
-		StoreRoot: filepath.Dir(filepath.Dir(e.storeDir)), // Get root from store dir
+		Timeout:   30 * time.Second,
+		StoreRoot: e.tempDir, // Use the temp directory as the store root
 	}
 }
 
@@ -124,7 +127,7 @@ func TestBasicFileEdit(t *testing.T) {
 		cfg.ProfilePath = env.profile
 		cfg.DryRun = false
 		
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err != nil {
 			t.Fatalf("Failed to edit file: %v", err)
 		}
@@ -139,16 +142,14 @@ func TestBasicFileEdit(t *testing.T) {
 		originalContent := mustReadFile(t, filePath)
 		env.CreateProfileWithClosure(filepath.Dir(filePath))
 		
-		cfg := &config.Config{
-			Path:        filePath,
-			Editor:      "sed -i 's/not/MODIFIED/g'",
-			SystemType:  "profile",
-			ProfilePath: env.profile,
-			DryRun:      true,
-			Timeout:     30 * time.Second,
-		}
+		cfg := env.CreateConfig()
+		cfg.Path = filePath
+		cfg.Editor = "sed -i 's/not/MODIFIED/g'"
+		cfg.SystemType = "profile"
+		cfg.ProfilePath = env.profile
+		cfg.DryRun = true
 		
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err != nil {
 			t.Fatalf("Dry-run failed: %v", err)
 		}
@@ -176,16 +177,14 @@ func TestComplexRewriteScenarios(t *testing.T) {
 		
 		env.CreateProfileWithClosure(appItem, filepath.Dir(configPath))
 		
-		cfg := &config.Config{
-			Path:        configPath,
-			Editor:      "sed -i 's|/old/path|/new/path|g'",
-			SystemType:  "profile", 
-			ProfilePath: env.profile,
-			DryRun:      false,
-			Timeout:     30 * time.Second,
-		}
+		cfg := env.CreateConfig()
+		cfg.Path = configPath
+		cfg.Editor = "sed -i 's|/old/path|/new/path|g'"
+		cfg.SystemType = "profile"
+		cfg.ProfilePath = env.profile
+		cfg.DryRun = false
 		
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err != nil {
 			t.Fatalf("Failed to edit file with dependencies: %v", err)
 		}
@@ -217,7 +216,7 @@ func TestComplexRewriteScenarios(t *testing.T) {
 		}
 		
 		// Should handle circular dependencies gracefully
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err != nil {
 			// Some errors are expected for circular deps
 			t.Logf("Circular dependency test result: %v", err)
@@ -239,7 +238,7 @@ func TestErrorScenarios(t *testing.T) {
 			Timeout:     30 * time.Second,
 		}
 		
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err == nil {
 			t.Fatal("Expected error when editing non-existent file")
 		}
@@ -259,7 +258,7 @@ func TestErrorScenarios(t *testing.T) {
 			Timeout:     30 * time.Second,
 		}
 		
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err == nil {
 			t.Fatal("Expected error when editing file outside store")
 		}
@@ -278,7 +277,7 @@ func TestErrorScenarios(t *testing.T) {
 			Timeout:     1 * time.Second,
 		}
 		
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err == nil {
 			t.Fatal("Expected timeout error")
 		}
@@ -302,7 +301,7 @@ func TestEdgeCases(t *testing.T) {
 			Timeout:     30 * time.Second,
 		}
 		
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err != nil {
 			t.Logf("Empty file edit result: %v", err)
 		}
@@ -328,7 +327,7 @@ func TestEdgeCases(t *testing.T) {
 			Timeout:     30 * time.Second,
 		}
 		
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err != nil {
 			t.Logf("Symlink edit result: %v", err)
 		}
@@ -349,7 +348,7 @@ func TestEdgeCases(t *testing.T) {
 			Timeout:     30 * time.Second,
 		}
 		
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err != nil {
 			t.Logf("Large file edit result: %v", err)
 		}
@@ -378,7 +377,7 @@ func TestActivationScenarios(t *testing.T) {
 			Timeout:           30 * time.Second,
 		}
 		
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err != nil {
 			t.Logf("Custom activation result: %v", err)
 		}
@@ -403,7 +402,7 @@ func TestActivationScenarios(t *testing.T) {
 			Timeout:           30 * time.Second,
 		}
 		
-		err := patch.Run(cfg)
+		err := integration.RunMockPatch(cfg)
 		if err == nil {
 			t.Fatal("Expected error from failed activation command")
 		}

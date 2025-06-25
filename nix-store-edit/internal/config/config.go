@@ -2,7 +2,6 @@
 package config
 
 import (
-	"os"
 	"time"
 )
 
@@ -58,7 +57,7 @@ type Config struct {
 // NewConfig creates a new configuration with defaults
 func NewConfig() *Config {
 	return &Config{
-		Editor:   getEnvOrDefault("EDITOR", DefaultEditor),
+		Editor:   DefaultEditor,
 		Timeout:  DefaultTimeout,
 		StoreRoot: "", // Default to system /nix
 	}
@@ -73,13 +72,6 @@ func (c *Config) Validate() error {
 		return ErrMissingEditor
 	}
 	return nil
-}
-
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
 
 // Common errors

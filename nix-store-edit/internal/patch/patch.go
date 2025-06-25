@@ -13,6 +13,7 @@ import (
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/archive"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/constants"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/editor"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/nar"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/rewrite"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
@@ -243,13 +244,9 @@ func createAndEditWorkspace(cfg *config.Config, pc *pathComponents, s *store.Sto
 	}
 
 	// Open in editor
-	cmd := exec.Command(cfg.Editor, editPath)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := editor.Open(cfg.Editor, editPath); err != nil {
 		w.cleanup()
-		return nil, false, fmt.Errorf("editor failed: %w", err)
+		return nil, false, err
 	}
 
 	// Determine comparison paths
@@ -265,8 +262,8 @@ func createAndEditWorkspace(cfg *config.Config, pc *pathComponents, s *store.Sto
 	}
 	
 	// Check if there are any changes
-	cmd = exec.Command("diff", "--recursive", w.compareOldPath, w.compareNewPath)
-	if err := cmd.Run(); err == nil {
+	diffCmd := exec.Command("diff", "--recursive", w.compareOldPath, w.compareNewPath)
+	if err := diffCmd.Run(); err == nil {
 		w.cleanup()
 		return nil, false, nil
 	}

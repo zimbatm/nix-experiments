@@ -16,6 +16,11 @@ import (
 // Execute runs the main command
 func Execute() error {
 	cfg := config.NewConfig()
+	
+	// Use EDITOR environment variable if set
+	if editor := os.Getenv("EDITOR"); editor != "" {
+		cfg.Editor = editor
+	}
 
 	// Define flags
 	flag.StringVar(&cfg.Editor, "editor", cfg.Editor, "editor to use")
