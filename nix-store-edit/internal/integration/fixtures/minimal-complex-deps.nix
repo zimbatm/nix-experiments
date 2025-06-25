@@ -1,4 +1,4 @@
-# Minimal test for handling complex interdependencies
+# Minimal test for handling complex dependency graphs
 let
   # Two configs that reference each other's paths
   configA = derivation {
@@ -14,22 +14,21 @@ let
     system = builtins.currentSystem;
     builder = "/bin/sh";
     args = [ "-c" ''
-      cat > $out << EOF
-      Config B
-      References config A at: ${configA}
-      EOF
+      echo "Config B" > $out
+      echo "References config A at: ${configA}" >> $out
     '' ];
   };
   
-  # Main bundle that includes both
+  # Main bundle that references both
   bundle = derivation {
     name = "circular-test";
     system = builtins.currentSystem;
     builder = "/bin/sh";
     args = [ "-c" ''
-      mkdir -p $out
-      ln -s ${configA} $out/config-a
-      ln -s ${configB} $out/config-b
+      echo "Config A location: ${configA}" > $out
+      echo "Config B location: ${configB}" >> $out
+      echo "" >> $out
+      echo "This creates a closure where both configs are referenced." >> $out
     '' ];
   };
 in bundle

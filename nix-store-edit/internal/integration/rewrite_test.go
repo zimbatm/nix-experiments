@@ -175,11 +175,7 @@ func TestBinaryRewriting(t *testing.T) {
 		must(t, os.Chmod(interpreterBin, 0755))
 		
 		// Create script with shebang
-		scriptContent := fmt.Sprintf(`#!%s
-import sys
-print("Hello from custom Python")
-# Also references: %s/lib/python3.11
-`, interpreterBin, interpreterPath)
+		scriptContent := fmt.Sprintf("#!%s\nimport sys\nprint('Hello from custom Python')\n# Also references: %s/lib/python3.11\n", interpreterBin, interpreterPath)
 		
 		scriptItem := env.CreateStoreItem("myscript", scriptContent)
 		scriptPath := filepath.Dir(scriptItem)

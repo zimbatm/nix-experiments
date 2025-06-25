@@ -233,11 +233,11 @@ func TestProfileWithDifferentEditors(t *testing.T) {
 		setup  func(string) string // Returns the editor command
 	}{
 		{
-			name: "sed in-place",
+			name: "sed-inplace",
 			editor: "sed -i 's/OLD/NEW/g'",
 		},
 		{
-			name: "custom script editor",
+			name: "custom-script-editor",
 			setup: func(tempDir string) string {
 				scriptPath := filepath.Join(tempDir, "editor.sh")
 				script := `#!/bin/sh
@@ -250,7 +250,7 @@ mv "$file.tmp" "$file"
 			},
 		},
 		{
-			name: "editor with arguments",
+			name: "editor-with-arguments",
 			editor: `sh -c "sed 's/OLD/NEW/g' '$1' > '$1.tmp' && mv '$1.tmp' '$1'" --`,
 		},
 	}
@@ -258,7 +258,7 @@ mv "$file.tmp" "$file"
 	for _, tt := range editors {
 		t.Run(tt.name, func(t *testing.T) {
 			item := env.CreateStoreItem(tt.name, "OLD content here")
-			env.CreateProfileWithClosure(filepath.Dir(item))
+			env.CreateProfileWithClosure(item)
 			
 			editor := tt.editor
 			if tt.setup != nil {

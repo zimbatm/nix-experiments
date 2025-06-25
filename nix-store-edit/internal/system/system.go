@@ -67,7 +67,7 @@ func Detect() (System, error) {
 }
 
 // GetSystemByType returns a system implementation for the given type
-func GetSystemByType(systemType string, profilePath string) (System, error) {
+func GetSystemByType(systemType string, profilePath string, storeRoot string) (System, error) {
 	switch Type(systemType) {
 	case TypeNixOS:
 		return &NixOS{}, nil
@@ -85,7 +85,7 @@ func GetSystemByType(systemType string, profilePath string) (System, error) {
 				return nil, fmt.Errorf("could not determine user profile path")
 			}
 		}
-		return &Profile{ProfilePath: profilePath}, nil
+		return &Profile{ProfilePath: profilePath, StoreRoot: storeRoot}, nil
 	default:
 		return nil, fmt.Errorf("unknown system type: %s", systemType)
 	}

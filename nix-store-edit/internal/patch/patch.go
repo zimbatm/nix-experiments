@@ -131,7 +131,7 @@ func validateTargetPath(path string, s *store.Store) (string, error) {
 func detectOrOverrideSystem(cfg *config.Config) (system.System, error) {
 	if cfg.SystemType != "" {
 		// Use the system type override
-		sys, err := system.GetSystemByType(cfg.SystemType, cfg.ProfilePath)
+		sys, err := system.GetSystemByType(cfg.SystemType, cfg.ProfilePath, cfg.StoreRoot)
 		if err != nil {
 			return nil, fmt.Errorf("invalid system type: %w", err)
 		}

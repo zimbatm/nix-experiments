@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -67,7 +68,11 @@ func (s *Store) execNixStore(args ...string) ([]byte, error) {
 	}
 	
 	cmd := exec.Command("nix-store", args...)
-	return cmd.Output()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("%w\nOutput: %s", err, string(output))
+	}
+	return output, nil
 }
 
 // QueryReferences returns the references of a store path
@@ -88,9 +93,8 @@ func (s *Store) QueryReferences(path string) ([]string, error) {
 
 // Dump creates a NAR dump of the given path
 func (s *Store) Dump(path string) ([]byte, error) {
-	// Convert to standard path for nix-store command
-	standardPath := s.toStandardPath(path)
-	output, err := s.execNixStore("--dump", standardPath)
+	// For dump, we need the actual filesystem path, not the standard path
+	output, err := s.execNixStore("--dump", path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dump store path: %w", err)
 	}
@@ -117,7 +121,18 @@ func (s *Store) Import(narData []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to import to store: %w\nstderr: %s", err, stderr.String())
 	}
-	return strings.TrimSpace(stdout.String()), nil
+	
+	// Get the standard path returned by nix-store
+	standardPath := strings.TrimSpace(stdout.String())
+	
+	// Convert to custom store path if using custom root
+	if s.RootDir != "" && strings.HasPrefix(standardPath, "/nix/store/") {
+		relativePath := strings.TrimPrefix(standardPath, "/nix/store/")
+		customPath := filepath.Join(s.StoreDir, relativePath)
+		return customPath, nil
+	}
+	
+	return standardPath, nil
 }
 
 // IsStorePath checks if a path is in this store
@@ -203,6 +218,11 @@ func (s *Store) WhyDepends(from, to string, all bool) ([]byte, error) {
 // toStandardPath converts a custom store path to standard /nix/store format
 func (s *Store) toStandardPath(path string) string {
 	if s.RootDir == "" {
+		return path
+	}
+	
+	// If it's already a standard path, return as-is
+	if strings.HasPrefix(path, "/nix/store/") {
 		return path
 	}
 	

@@ -114,7 +114,7 @@ For full integration testing, consider:
 **Test Fixtures**:
 - `minimal.nix` - Simple text file derivation (no nixpkgs needed)
 - `minimal-with-deps.nix` - Derivation with dependency relationships  
-- `minimal-circular.nix` - Complex interdependencies test case
+- `minimal-complex-deps.nix` - Complex dependency graph test case
 - `with-dependencies.nix` - Uses nixpkgs for more complex scenarios
 
 **Custom Store Integration**:

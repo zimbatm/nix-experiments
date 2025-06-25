@@ -126,7 +126,7 @@ func TestGetSystemByType(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			sys, err := GetSystemByType(tc.systemType, tc.profilePath)
+			sys, err := GetSystemByType(tc.systemType, tc.profilePath, "")
 
 			if (err != nil) != tc.wantErr {
 				t.Errorf("GetSystemByType(%q, %q) error = %v, wantErr %v", tc.systemType, tc.profilePath, err, tc.wantErr)

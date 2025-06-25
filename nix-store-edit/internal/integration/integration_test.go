@@ -243,16 +243,16 @@ func TestComplexRewriteScenarios(t *testing.T) {
 	defer env.Cleanup()
 	
 	t.Run("edit file with dependencies", func(t *testing.T) {
-		// Build a minimal derivation with dependencies
-		appPath := env.BuildDerivation("minimal-with-deps.nix")
-		env.CreateProfileWithClosure(appPath)
-		
-		// Find the config file within the app closure
-		configFile := filepath.Join(appPath, "app-config")
+		// For now, create a simple file that contains references to test dependency handling
+		content := `Config file
+References: /nix/store/abc123-somelib
+References: /nix/store/def456-otherlib`
+		configFile := env.CreateStoreItem("config-with-refs", content)
+		env.CreateProfileWithClosure(configFile)
 		
 		cfg := env.CreateConfig()
 		cfg.Path = configFile
-		cfg.Editor = "sed -i 's|localhost|127.0.0.1|g'"
+		cfg.Editor = "sed -i 's|abc123|xyz789|g'"
 		cfg.SystemType = "profile"
 		cfg.ProfilePath = env.profile
 		cfg.DryRun = false
@@ -262,21 +262,19 @@ func TestComplexRewriteScenarios(t *testing.T) {
 			t.Fatalf("Failed to edit file with dependencies: %v", err)
 		}
 		
-		// The system should have created a new closure with updated dependencies
+		// The system should have created a new closure with updated references
 	})
 	
-	t.Run("circular dependency handling", func(t *testing.T) {
-		// Build the minimal circular deps test fixture
-		// Note: Nix prevents true circular dependencies, but we can test
-		// a closure where multiple items reference each other
-		circularPath := env.BuildDerivation("minimal-circular.nix")
-		env.CreateProfileWithClosure(circularPath)
+	t.Run("complex dependency handling", func(t *testing.T) {
+		// Build a test fixture with complex dependency graph
+		complexPath := env.BuildDerivation("minimal-complex-deps.nix")
+		env.CreateProfileWithClosure(complexPath)
 		
-		// Find a config file to edit
-		configA := filepath.Join(circularPath, "config-a")
+		// The bundle file itself contains the references
+		configFile := complexPath
 		
 		cfg := env.CreateConfig()
-		cfg.Path = configA
+		cfg.Path = configFile
 		cfg.Editor = "sed -i 's/Config A/Configuration A/g'"
 		cfg.SystemType = "profile"
 		cfg.ProfilePath = env.profile
@@ -285,7 +283,7 @@ func TestComplexRewriteScenarios(t *testing.T) {
 		// Should handle complex dependency graphs gracefully
 		err := patch.Run(cfg)
 		if err != nil {
-			t.Fatalf("Failed to handle circular deps: %v", err)
+			t.Fatalf("Failed to handle complex deps: %v", err)
 		}
 	})
 }

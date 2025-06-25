@@ -24,14 +24,15 @@ let
     '' ];
   };
 in
-# Bundle both together with proper directory structure
+# Bundle both together - create a simple text file that references both
 derivation {
   inherit system;
   name = "app-bundle";
   builder = "/bin/sh";
   args = [ "-c" ''
-    mkdir -p $out
-    cp ${config} $out/app-config
-    cp ${script} $out/app-script
+    echo "Config: ${config}" > $out
+    echo "Script: ${script}" >> $out
+    echo "" >> $out
+    echo "This bundle references both the config and script." >> $out
   '' ];
 }
