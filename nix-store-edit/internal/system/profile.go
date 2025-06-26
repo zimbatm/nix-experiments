@@ -1,11 +1,12 @@
 package system
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
 )
 
 // Profile represents a custom Nix profile
@@ -22,13 +23,17 @@ func (p *Profile) Type() Type {
 // GetClosurePath returns the path to the current profile closure
 func (p *Profile) GetClosurePath() (string, error) {
 	if p.ProfilePath == "" {
-		return "", fmt.Errorf("profile path not specified")
+		return "", errors.New(errors.ErrCodeValidation, "Profile.GetClosurePath", "profile path not specified")
 	}
 
 	// Resolve the profile path
 	closurePath, err := filepath.EvalSymlinks(p.ProfilePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve profile path %s: %w", p.ProfilePath, err)
+		err = errors.Wrap(err, errors.ErrCodeSystem, "Profile.GetClosurePath")
+		if e, ok := err.(*errors.Error); ok {
+			e.Path = p.ProfilePath
+		}
+		return "", err
 	}
 
 	return closurePath, nil
@@ -38,7 +43,7 @@ func (p *Profile) GetClosurePath() (string, error) {
 func (p *Profile) TestConfiguration(closurePath string) error {
 	// For custom profiles, we just verify the path exists
 	if _, err := os.Stat(closurePath); err != nil {
-		return fmt.Errorf("closure path does not exist: %w", err)
+		return errors.Wrap(err, errors.ErrCodeValidation, "Profile.TestConfiguration")
 	}
 	return nil
 }
@@ -78,7 +83,7 @@ func (p *Profile) ApplyClosure(closurePath string, customCommand string) error {
 		// Parse custom command
 		args := strings.Fields(customCommand)
 		if len(args) == 0 {
-			return fmt.Errorf("empty activation command")
+			return errors.New(errors.ErrCodeValidation, "Profile.ApplyClosure", "empty activation command")
 		}
 		cmd = exec.Command(args[0], args[1:]...)
 		// Replace {path} and {profile} placeholders
@@ -100,7 +105,7 @@ func (p *Profile) ApplyClosure(closurePath string, customCommand string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to activate profile: %w", err)
+		return errors.Wrap(err, errors.ErrCodeSystem, "Profile.ApplyClosure")
 	}
 	return nil
 }

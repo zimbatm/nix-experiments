@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
 )
 
 // NixDarwin represents a nix-darwin system
@@ -21,7 +23,7 @@ func (d *NixDarwin) GetClosurePath() (string, error) {
 	// nix-darwin uses /run/current-system
 	closurePath, err := filepath.EvalSymlinks("/run/current-system")
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve nix-darwin system closure: %w", err)
+		return "", errors.Wrap(err, errors.ErrCodeSystem, "NixDarwin.GetClosurePath")
 	}
 	return closurePath, nil
 }
@@ -39,7 +41,7 @@ func (d *NixDarwin) ApplyClosure(closurePath string, customCommand string) error
 		// Parse custom command
 		args := strings.Fields(customCommand)
 		if len(args) == 0 {
-			return fmt.Errorf("empty activation command")
+			return errors.New(errors.ErrCodeValidation, "NixDarwin.ApplyClosure", "empty activation command")
 		}
 		cmd = exec.Command(args[0], args[1:]...)
 		// Replace {path} placeholder with actual closure path
@@ -55,7 +57,7 @@ func (d *NixDarwin) ApplyClosure(closurePath string, customCommand string) error
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to activate nix-darwin configuration: %w", err)
+		return errors.Wrap(err, errors.ErrCodeSystem, "NixDarwin.ApplyClosure")
 	}
 	return nil
 }

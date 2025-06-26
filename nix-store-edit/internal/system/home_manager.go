@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
 )
 
 // HomeManager represents a home-manager configuration
@@ -21,7 +23,7 @@ func (h *HomeManager) GetClosurePath() (string, error) {
 	// home-manager uses ~/.nix-profile or a specific profile path
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
+		return "", errors.Wrap(err, errors.ErrCodeSystem, "HomeManager.GetClosurePath")
 	}
 
 	// Try common home-manager profile locations
@@ -39,7 +41,7 @@ func (h *HomeManager) GetClosurePath() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("failed to find home-manager profile")
+	return "", errors.New(errors.ErrCodeSystem, "HomeManager.GetClosurePath", "failed to find home-manager profile")
 }
 
 // GetDefaultCommand returns the default command for home-manager (switch - no test mode available)
@@ -55,7 +57,7 @@ func (h *HomeManager) ApplyClosure(closurePath string, customCommand string) err
 		// Parse custom command
 		args := strings.Fields(customCommand)
 		if len(args) == 0 {
-			return fmt.Errorf("empty activation command")
+			return errors.New(errors.ErrCodeValidation, "HomeManager.ApplyClosure", "empty activation command")
 		}
 		cmd = exec.Command(args[0], args[1:]...)
 		// Replace {path} placeholder with actual closure path
@@ -71,7 +73,7 @@ func (h *HomeManager) ApplyClosure(closurePath string, customCommand string) err
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to activate home-manager configuration: %w", err)
+		return errors.Wrap(err, errors.ErrCodeSystem, "HomeManager.ApplyClosure")
 	}
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/constants"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
@@ -43,7 +44,7 @@ func (c *StoreCache) GetReferences(path string) ([]string, error) {
 	// Not in cache, query store
 	refs, err := c.store.QueryReferences(path)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, errors.ErrCodeStore, "queryReferences")
 	}
 
 	// Cache the result
@@ -69,7 +70,7 @@ func (c *StoreCache) GetNARData(path string) ([]byte, error) {
 	// Not in cache, generate NAR
 	data, err := c.store.Dump(path)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, errors.ErrCodeStore, "dumpNAR")
 	}
 
 	// Cache the result (be careful with memory usage)

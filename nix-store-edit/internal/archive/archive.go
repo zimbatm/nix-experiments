@@ -9,6 +9,7 @@ import (
 	"github.com/nix-community/go-nix/pkg/nar"
 	"github.com/nix-community/go-nix/pkg/wire"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
@@ -39,7 +40,7 @@ func CreateWithStore(oldPath, newPath string, s *store.Store) ([]byte, string, e
 	// Create NAR of the path
 	narBuf := &bytes.Buffer{}
 	if err := nar.DumpPath(narBuf, newPath); err != nil {
-		return nil, "", fmt.Errorf("failed to create NAR: %w", err)
+		return nil, "", errors.Wrap(err, errors.ErrCodeNAR, "CreateWithStore")
 	}
 	narData := narBuf.Bytes()
 
@@ -57,7 +58,7 @@ func CreateWithStore(oldPath, newPath string, s *store.Store) ([]byte, string, e
 	// Extract derivation name from old path
 	sp, err := s.ParseStorePath(oldPath)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to parse store path: %w", err)
+		return nil, "", errors.Wrap(err, errors.ErrCodeStore, "CreateWithStore.parseStorePath")
 	}
 	
 	if oldPath != newPath {
@@ -108,7 +109,7 @@ func CreateWithRewritesAndStore(oldPath, pathToAdd string, rewrites map[string]s
 	// Create NAR from the pathToAdd first to generate content-based hash
 	narBuf := &bytes.Buffer{}
 	if err := nar.DumpPath(narBuf, pathToAdd); err != nil {
-		return nil, "", fmt.Errorf("failed to create NAR: %w", err)
+		return nil, "", errors.Wrap(err, errors.ErrCodeNAR, "CreateWithRewritesAndStore")
 	}
 	narData := narBuf.Bytes()
 
@@ -118,7 +119,7 @@ func CreateWithRewritesAndStore(oldPath, pathToAdd string, rewrites map[string]s
 	// Extract derivation name
 	sp, err := s.ParseStorePath(oldPath)
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid store path: %w", err)
+		return nil, "", errors.Wrap(err, errors.ErrCodeValidation, "CreateWithRewritesAndStore.parseStorePath")
 	}
 
 	newPath := fmt.Sprintf("%s/%s-%s", s.StoreDir, newHash, sp.Name)

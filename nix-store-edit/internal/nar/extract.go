@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/nix-community/go-nix/pkg/nar"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
 )
 
 // ExtractOptions configures NAR extraction behavior
@@ -86,7 +87,7 @@ func extractDirectory(nr *nar.Reader, firstHdr *nar.Header, destPath string, opt
 	// Process the first entry if it's not the root
 	if firstHdr.Path != "/" {
 		if err := processEntry(firstHdr, nr, destPath, opts, &dirPerms); err != nil {
-			return err
+			return errors.Wrap(err, errors.ErrCodeNAR, "processFirstEntry")
 		}
 	}
 
@@ -106,7 +107,7 @@ func extractDirectory(nr *nar.Reader, firstHdr *nar.Header, destPath string, opt
 		}
 
 		if err := processEntry(hdr, nr, destPath, opts, &dirPerms); err != nil {
-			return err
+			return errors.Wrap(err, errors.ErrCodeNAR, "processEntry")
 		}
 	}
 

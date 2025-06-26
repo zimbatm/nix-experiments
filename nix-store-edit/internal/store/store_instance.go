@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
 )
 
 // Store represents a Nix store instance with its configuration
@@ -70,7 +72,7 @@ func (s *Store) execNixStore(args ...string) ([]byte, error) {
 	cmd := exec.Command("nix-store", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("%w\nOutput: %s", err, string(output))
+		return nil, fmt.Errorf("nix-store %s failed: %w\nOutput: %s", strings.Join(args, " "), err, string(output))
 	}
 	return output, nil
 }
@@ -181,7 +183,7 @@ func (s *Store) ParseStorePath(path string) (*StorePathInfo, error) {
 	// Extract hash and name
 	hashParts := strings.Split(relPath, "-")
 	if len(hashParts) < 2 {
-		return nil, fmt.Errorf("invalid store path format")
+		return nil, fmt.Errorf("invalid store path format: %s", path)
 	}
 
 	return &StorePathInfo{
@@ -194,7 +196,7 @@ func (s *Store) ParseStorePath(path string) (*StorePathInfo, error) {
 func (s *Store) IsTrustedUser() (bool, error) {
 	info, err := s.GetStoreInfo()
 	if err != nil {
-		return false, err
+		return false, errors.Wrap(err, errors.ErrCodeStore, "getTrustedUserStatus")
 	}
 	return info.Trusted == 1, nil
 }

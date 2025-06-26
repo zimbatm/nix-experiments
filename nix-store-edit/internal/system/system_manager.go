@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
 )
 
 // SystemManager represents a system-manager configuration
@@ -26,13 +28,13 @@ func (s *SystemManager) GetClosurePath() (string, error) {
 		if symlinkExists(userProfile) {
 			systemPath = userProfile
 		} else {
-			return "", fmt.Errorf("system-manager profile not found")
+			return "", errors.New(errors.ErrCodeSystem, "SystemManager.GetClosurePath", "system-manager profile not found")
 		}
 	}
 
 	resolved, err := filepath.EvalSymlinks(systemPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve system-manager closure: %w", err)
+		return "", errors.Wrap(err, errors.ErrCodeSystem, "SystemManager.GetClosurePath")
 	}
 	return resolved, nil
 }
@@ -50,7 +52,7 @@ func (s *SystemManager) ApplyClosure(closurePath string, customCommand string) e
 		// Parse custom command
 		args := strings.Fields(customCommand)
 		if len(args) == 0 {
-			return fmt.Errorf("empty activation command")
+			return errors.New(errors.ErrCodeValidation, "SystemManager.ApplyClosure", "empty activation command")
 		}
 		cmd = exec.Command(args[0], args[1:]...)
 		// Replace {path} placeholder with actual closure path
@@ -66,7 +68,7 @@ func (s *SystemManager) ApplyClosure(closurePath string, customCommand string) e
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to activate system-manager configuration: %w", err)
+		return errors.Wrap(err, errors.ErrCodeSystem, "SystemManager.ApplyClosure")
 	}
 	return nil
 }

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
 )
 
 // Type represents the type of Nix-based system
@@ -63,7 +65,7 @@ func Detect() (System, error) {
 		return &Profile{ProfilePath: userProfile}, nil
 	}
 
-	return nil, fmt.Errorf("no supported Nix system detected and no user profile found")
+	return nil, errors.New(errors.ErrCodeSystem, "Detect", "no supported Nix system detected and no user profile found")
 }
 
 // GetSystemByType returns a system implementation for the given type
@@ -82,12 +84,12 @@ func GetSystemByType(systemType string, profilePath string, storeRoot string) (S
 			// Default to user profile
 			profilePath = getUserProfilePath()
 			if profilePath == "" {
-				return nil, fmt.Errorf("could not determine user profile path")
+				return nil, errors.New(errors.ErrCodeConfig, "GetSystemByType", "could not determine user profile path")
 			}
 		}
 		return &Profile{ProfilePath: profilePath, StoreRoot: storeRoot}, nil
 	default:
-		return nil, fmt.Errorf("unknown system type: %s", systemType)
+		return nil, errors.New(errors.ErrCodeValidation, "GetSystemByType", fmt.Sprintf("unknown system type: %s", systemType))
 	}
 }
 

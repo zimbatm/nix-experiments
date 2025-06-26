@@ -19,6 +19,21 @@ const (
 	// Validation errors
 	ErrCodeValidation ErrorCode = "VALIDATION"
 
+	// NAR archive operation errors
+	ErrCodeNAR ErrorCode = "NAR"
+
+	// Path rewriting errors
+	ErrCodeRewrite ErrorCode = "REWRITE"
+
+	// System-specific operation errors
+	ErrCodeSystem ErrorCode = "SYSTEM"
+
+	// Editor operation errors
+	ErrCodeEditor ErrorCode = "EDITOR"
+
+	// Permission-related errors
+	ErrCodePermission ErrorCode = "PERMISSION"
+
 	// Unknown errors
 	ErrCodeUnknown ErrorCode = "UNKNOWN"
 )
@@ -135,6 +150,16 @@ func Format(err error) string {
 		return fmt.Sprintf("Store operation failed: %s", e.Error())
 	case ErrCodeValidation:
 		return fmt.Sprintf("Validation error: %s", e.Message)
+	case ErrCodeNAR:
+		return fmt.Sprintf("NAR operation failed: %s", e.Error())
+	case ErrCodeRewrite:
+		return fmt.Sprintf("Path rewriting failed: %s", e.Error())
+	case ErrCodeSystem:
+		return fmt.Sprintf("System operation failed: %s", e.Error())
+	case ErrCodeEditor:
+		return fmt.Sprintf("Editor operation failed: %s", e.Error())
+	case ErrCodePermission:
+		return fmt.Sprintf("Permission denied: %s", e.Error())
 	default:
 		return e.Error()
 	}

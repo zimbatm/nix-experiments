@@ -13,6 +13,7 @@ import (
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/archive"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/editor"
+	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/nar"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/rewrite"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
@@ -28,13 +29,13 @@ func Run(cfg *config.Config) error {
 	// Step 1: Validate and resolve target path
 	targetPath, err := validateTargetPath(cfg.Path, s)
 	if err != nil {
-		return err
+		return errors.Wrap(err, errors.ErrCodeValidation, "validateTargetPath")
 	}
 
 	// Step 2: Detect or override system type
 	sys, err := detectOrOverrideSystem(cfg)
 	if err != nil {
-		return err
+		return errors.Wrap(err, errors.ErrCodeSystem, "detectOrOverrideSystem")
 	}
 
 	// Step 3: Get system closure
@@ -46,13 +47,13 @@ func Run(cfg *config.Config) error {
 	// Step 4: Parse path components
 	pathComponents, err := parseStorePath(targetPath, s)
 	if err != nil {
-		return err
+		return errors.Wrap(err, errors.ErrCodeValidation, "parseStorePath")
 	}
 
 	// Step 5: Create workspace and edit
 	workspace, hasChanges, err := createAndEditWorkspace(cfg, pathComponents, s)
 	if err != nil {
-		return err
+		return errors.Wrap(err, errors.ErrCodeEditor, "createAndEditWorkspace")
 	}
 	if !hasChanges {
 		log.Println("ignoring as no changes were detected")
@@ -69,7 +70,7 @@ func Run(cfg *config.Config) error {
 	log.Printf("Target store path: %s", pathComponents.storePath)
 	_, closureChain, affectedPaths, err := s.BuildDependencyChain(systemClosure, pathComponents.storePath)
 	if err != nil {
-		return err
+		return errors.Wrap(err, errors.ErrCodeStore, "buildDependencyChain")
 	}
 	log.Println("Dependency graph built successfully")
 
@@ -90,7 +91,7 @@ func Run(cfg *config.Config) error {
 	// Step 8: Import modified path to store
 	modifiedStorePath, err := importModifiedPath(cfg, pathComponents, workspace.destPath, s)
 	if err != nil {
-		return err
+		return errors.Wrap(err, errors.ErrCodeStore, "importModifiedPath")
 	}
 
 	// Rewrite the entire closure
@@ -107,7 +108,7 @@ func Run(cfg *config.Config) error {
 		showDryRunSummary(engine, sys, pathComponents.storePath, systemClosure, newSystemClosure, cfg)
 	} else {
 		if err := applySystemClosure(sys, newSystemClosure, cfg); err != nil {
-			return err
+			return errors.Wrap(err, errors.ErrCodeSystem, "applySystemClosure")
 		}
 	}
 
