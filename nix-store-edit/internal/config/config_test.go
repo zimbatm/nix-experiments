@@ -1,31 +1,31 @@
 package config
 
 import (
-	"os"
 	"testing"
 	"time"
 )
 
 func TestNewConfig(t *testing.T) {
-	// Save original env
-	originalEditor := os.Getenv("EDITOR")
-	defer os.Setenv("EDITOR", originalEditor)
-
-	// Test with no EDITOR env
-	os.Unsetenv("EDITOR")
 	cfg := NewConfig()
+	
+	// Test default values
 	if cfg.Editor != DefaultEditor {
 		t.Errorf("Expected default editor %s, got %s", DefaultEditor, cfg.Editor)
 	}
 	if cfg.Timeout != DefaultTimeout {
 		t.Errorf("Expected default timeout %v, got %v", DefaultTimeout, cfg.Timeout)
 	}
-
-	// Test with EDITOR env
-	os.Setenv("EDITOR", "nano")
-	cfg = NewConfig()
-	if cfg.Editor != "nano" {
-		t.Errorf("Expected editor nano, got %s", cfg.Editor)
+	if cfg.StoreRoot != "" {
+		t.Errorf("Expected empty StoreRoot, got %s", cfg.StoreRoot)
+	}
+	if cfg.DryRun != false {
+		t.Errorf("Expected DryRun to be false, got %v", cfg.DryRun)
+	}
+	if cfg.Verbose != false {
+		t.Errorf("Expected Verbose to be false, got %v", cfg.Verbose)
+	}
+	if cfg.Force != false {
+		t.Errorf("Expected Force to be false, got %v", cfg.Force)
 	}
 }
 

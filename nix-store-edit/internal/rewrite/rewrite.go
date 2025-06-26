@@ -299,5 +299,11 @@ func (e *Engine) topologicalSort(paths []string, graph *DependencyGraph) ([]stri
 		return nil, fmt.Errorf("dependency cycle detected")
 	}
 
+	// Reverse the order to get leaves first, roots last
+	for i := 0; i < len(sorted)/2; i++ {
+		j := len(sorted) - 1 - i
+		sorted[i], sorted[j] = sorted[j], sorted[i]
+	}
+
 	return sorted, nil
 }

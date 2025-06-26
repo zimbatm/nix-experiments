@@ -25,14 +25,10 @@ func TestTopologicalSort(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	// The algorithm processes nodes with no incoming edges first
-	// In our case: a has no incoming edges (nothing depends on it)
-	// So order is: a, b, c (process things that nothing depends on first)
+	// For rewriting, we need to process dependencies before dependents
+	// In our case: c has no dependencies (leaf), a depends on b and c (root)
+	// So order should be: c, b, a (leaves first, roots last)
 	t.Logf("Topological sort order: %v", sorted)
-
-	// For our rewriting use case, this is actually what we want:
-	// We process the leaves of the dependency tree first (things nothing depends on)
-	// This ensures when we rewrite something, all its dependents are already processed
 
 	// Verify the sort maintains dependency order
 	order := make(map[string]int)
@@ -40,9 +36,22 @@ func TestTopologicalSort(t *testing.T) {
 		order[p] = i
 	}
 
-	// a should be processed before its dependencies
-	if sorted[0] != "/nix/store/a" {
-		t.Errorf("Expected a to be first in sort order, got %s", sorted[0])
+	// c should be processed first (it's a leaf)
+	if sorted[0] != "/nix/store/c" {
+		t.Errorf("Expected c to be first in sort order, got %s", sorted[0])
+	}
+	
+	// a should be processed last (it's the root)
+	if sorted[2] != "/nix/store/a" {
+		t.Errorf("Expected a to be last in sort order, got %s", sorted[2])
+	}
+	
+	// Dependencies should be processed before dependents
+	if order["/nix/store/c"] >= order["/nix/store/b"] {
+		t.Errorf("c should be processed before b")
+	}
+	if order["/nix/store/b"] >= order["/nix/store/a"] {
+		t.Errorf("b should be processed before a")
 	}
 }
 
@@ -62,5 +71,35 @@ func TestCycleDetection(t *testing.T) {
 	_, err := engine.topologicalSort(paths, graph)
 	if err == nil {
 		t.Error("Expected error for cyclic dependency, got nil")
+	}
+}
+
+func TestSimpleDependency(t *testing.T) {
+	// Test the exact scenario from the issue: profile -> claude-code
+	graph := &DependencyGraph{
+		references: map[string][]string{
+			"/nix/store/profile": {"/nix/store/claude-code"},
+			"/nix/store/claude-code": {},
+		},
+	}
+
+	engine := NewEngine()
+	paths := []string{"/nix/store/profile", "/nix/store/claude-code"}
+
+	sorted, err := engine.topologicalSort(paths, graph)
+	if err != nil {
+		t.Fatalf("Unexpected error for simple dependency: %v", err)
+	}
+
+	t.Logf("Sorted order: %v", sorted)
+	
+	// claude-code should be processed first (it's the dependency)
+	if sorted[0] != "/nix/store/claude-code" {
+		t.Errorf("Expected claude-code to be first, got %s", sorted[0])
+	}
+	
+	// profile should be processed second
+	if sorted[1] != "/nix/store/profile" {
+		t.Errorf("Expected profile to be second, got %s", sorted[1])
 	}
 }
