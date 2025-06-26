@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/errors"
@@ -49,6 +50,11 @@ func Execute() error {
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
 		return errors.Wrap(err, errors.ErrCodeConfig, "validate")
+	}
+
+	// Check for macOS with custom store
+	if cfg.StoreRoot != "" && runtime.GOOS == "darwin" {
+		return errors.New(errors.ErrCodeConfig, "validate", "custom --store flag is not supported on macOS")
 	}
 
 	// Create store instance

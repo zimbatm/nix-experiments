@@ -36,6 +36,9 @@ func TestExecute(t *testing.T) {
 			args:    []string{"nix-store-edit", "path1", "path2"},
 			wantErr: true,
 		},
+		// Note: We can't easily test the macOS store check here because
+		// runtime.GOOS is a compile-time constant. The check would need
+		// to be refactored to accept an OS parameter for proper testing.
 	}
 
 	for _, tt := range tests {
