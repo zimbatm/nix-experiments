@@ -14,7 +14,7 @@ import (
 func TestContentBasedHashing(t *testing.T) {
 	env := NewTestEnvironment(t)
 	defer env.Cleanup()
-	
+
 	// Create store instance for tests
 	s := store.New(env.tempDir) // Pass root directory, not store directory
 
@@ -22,7 +22,7 @@ func TestContentBasedHashing(t *testing.T) {
 		// Create a simple store item
 		originalContent := "Hello, World!"
 		item := env.CreateStoreItem("test-package", originalContent)
-		
+
 		// Create a temporary directory with modified content
 		tempDir := t.TempDir()
 		modifiedPath := filepath.Join(tempDir, "test-package")
@@ -89,7 +89,7 @@ func TestContentBasedHashing(t *testing.T) {
 		if importedPath != expectedPath {
 			t.Errorf("Imported path doesn't match expected: got %s, expected %s", importedPath, expectedPath)
 		}
-		
+
 		if importedPath != item {
 			t.Errorf("Expected same store path for unchanged content, got different path: original=%s, imported=%s", item, importedPath)
 		}
@@ -98,7 +98,7 @@ func TestContentBasedHashing(t *testing.T) {
 	t.Run("content-based hash is deterministic", func(t *testing.T) {
 		// Create identical content in two different temp directories
 		content := "Deterministic content test"
-		
+
 		tempDir1 := t.TempDir()
 		path1 := filepath.Join(tempDir1, "deterministic-package")
 		err := os.WriteFile(path1, []byte(content), 0644)
@@ -115,7 +115,7 @@ func TestContentBasedHashing(t *testing.T) {
 
 		// Create a dummy store path for the original
 		dummyOriginal := filepath.Join(env.storeDir, "dummy-hash-deterministic-package")
-		
+
 		// Create archives from both paths
 		narData1, expectedPath1, err := archive.CreateWithStore(dummyOriginal, path1, s)
 		if err != nil {
@@ -126,7 +126,7 @@ func TestContentBasedHashing(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create archive 2: %v", err)
 		}
-		
+
 		// Expected paths should be the same (deterministic)
 		if expectedPath1 != expectedPath2 {
 			t.Errorf("Expected paths not deterministic: %s vs %s", expectedPath1, expectedPath2)
@@ -191,7 +191,7 @@ func TestContentBasedHashing(t *testing.T) {
 		// Create modified directory structure
 		tempDir := t.TempDir()
 		modifiedDir := filepath.Join(tempDir, "dir-package")
-		
+
 		// Create modified structure
 		binDir := filepath.Join(modifiedDir, "bin")
 		libDir := filepath.Join(modifiedDir, "lib")
@@ -203,7 +203,7 @@ func TestContentBasedHashing(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create lib dir: %v", err)
 		}
-		
+
 		// Write modified files
 		err = os.WriteFile(filepath.Join(binDir, "app"), []byte("#!/bin/sh\necho 'v2.0'"), 0755)
 		if err != nil {
@@ -229,7 +229,7 @@ func TestContentBasedHashing(t *testing.T) {
 		if importedPath != expectedPath {
 			t.Errorf("Imported path doesn't match expected: got %s, expected %s", importedPath, expectedPath)
 		}
-		
+
 		if importedPath == item {
 			t.Errorf("Expected new store path for modified directory, got same path: %s", importedPath)
 		}

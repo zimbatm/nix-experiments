@@ -16,7 +16,7 @@ import (
 // Execute runs the main command
 func Execute() error {
 	cfg := config.NewConfig()
-	
+
 	// Use EDITOR environment variable if set
 	if editor := os.Getenv("EDITOR"); editor != "" {
 		cfg.Editor = editor
@@ -53,7 +53,7 @@ func Execute() error {
 
 	// Create store instance
 	s := store.New(cfg.StoreRoot)
-	
+
 	// Check if user is trusted
 	trusted, err := s.IsTrustedUser()
 	if err != nil {
@@ -112,4 +112,3 @@ Examples:
   %s --store ./mystore /nix/store/...-package/bin/app
 `, os.Args[0], os.Args[0], os.Args[0], os.Args[0])
 }
-

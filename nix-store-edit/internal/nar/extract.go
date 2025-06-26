@@ -137,7 +137,7 @@ func processEntry(hdr *nar.Header, nr *nar.Reader, basePath string, opts Extract
 		if err := os.MkdirAll(itemPath, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", itemPath, err)
 		}
-		
+
 		// Track for permission changes later if needed
 		if opts.PreserveMode && !opts.MakeWritable {
 			*dirPerms = append(*dirPerms, dirPermission{

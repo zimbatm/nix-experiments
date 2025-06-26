@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-	
+
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/config"
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/patch"
 )
@@ -16,7 +16,7 @@ func TestSimpleEdit(t *testing.T) {
 	if _, err := os.Stat("/nix/store"); err != nil {
 		t.Skip("Skipping test: /nix/store not available")
 	}
-	
+
 	t.Run("edit file in real store", func(t *testing.T) {
 		// Find a simple text file in the real Nix store
 		// This is a common file that exists in most Nix installations
@@ -24,7 +24,7 @@ func TestSimpleEdit(t *testing.T) {
 			"/run/current-system/sw/bin/nix",
 			"/nix/var/nix/profiles/default/bin/nix",
 		}
-		
+
 		var nixBin string
 		for _, path := range possiblePaths {
 			if _, err := os.Stat(path); err == nil {
@@ -36,21 +36,21 @@ func TestSimpleEdit(t *testing.T) {
 				}
 			}
 		}
-		
+
 		if nixBin == "" {
 			t.Skip("Could not find nix binary in store")
 		}
-		
+
 		t.Logf("Found nix binary at: %s", nixBin)
-		
+
 		// Create a simple test that just verifies we can read the file
 		cfg := &config.Config{
-			Path:     nixBin,
-			Editor:   "true", // Just exit successfully
-			DryRun:   true,   // Don't actually modify anything
-			Timeout:  30 * time.Second,
+			Path:    nixBin,
+			Editor:  "true", // Just exit successfully
+			DryRun:  true,   // Don't actually modify anything
+			Timeout: 30 * time.Second,
 		}
-		
+
 		// This should work up to the point where it tries to analyze dependencies
 		err := patch.Run(cfg)
 		if err != nil {

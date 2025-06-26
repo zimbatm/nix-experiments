@@ -16,7 +16,7 @@ const (
 	DefaultTimeout = 2 * time.Minute
 
 	// Cache settings
-	MaxCacheSize    = 100 * 1024 * 1024 // 100MB
+	MaxCacheSize = 100 * 1024 * 1024 // 100MB
 )
 
 // Config holds the application configuration
@@ -57,8 +57,8 @@ type Config struct {
 // NewConfig creates a new configuration with defaults
 func NewConfig() *Config {
 	return &Config{
-		Editor:   DefaultEditor,
-		Timeout:  DefaultTimeout,
+		Editor:    DefaultEditor,
+		Timeout:   DefaultTimeout,
 		StoreRoot: "", // Default to system /nix
 	}
 }

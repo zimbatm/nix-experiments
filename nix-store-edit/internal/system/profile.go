@@ -51,17 +51,17 @@ func (p *Profile) TestConfiguration(closurePath string) error {
 // GetDefaultCommand returns the default command for profiles (direct activation)
 func (p *Profile) GetDefaultCommand(closurePath string) []string {
 	args := []string{"nix-env"}
-	
+
 	// Add store flag if using custom root
 	if p.StoreRoot != "" {
 		args = append(args, "--store", p.StoreRoot)
 		// Convert custom store path to standard path for nix-env
 		closurePath = toStandardPath(closurePath)
 	}
-	
+
 	// Add profile and path arguments
 	args = append(args, "--profile", p.ProfilePath, "--set", closurePath)
-	
+
 	return args
 }
 

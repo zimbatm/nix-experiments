@@ -40,12 +40,12 @@ func TestTopologicalSort(t *testing.T) {
 	if sorted[0] != "/nix/store/c" {
 		t.Errorf("Expected c to be first in sort order, got %s", sorted[0])
 	}
-	
+
 	// a should be processed last (it's the root)
 	if sorted[2] != "/nix/store/a" {
 		t.Errorf("Expected a to be last in sort order, got %s", sorted[2])
 	}
-	
+
 	// Dependencies should be processed before dependents
 	if order["/nix/store/c"] >= order["/nix/store/b"] {
 		t.Errorf("c should be processed before b")
@@ -78,7 +78,7 @@ func TestSimpleDependency(t *testing.T) {
 	// Test the exact scenario from the issue: profile -> claude-code
 	graph := &DependencyGraph{
 		references: map[string][]string{
-			"/nix/store/profile": {"/nix/store/claude-code"},
+			"/nix/store/profile":     {"/nix/store/claude-code"},
 			"/nix/store/claude-code": {},
 		},
 	}
@@ -92,12 +92,12 @@ func TestSimpleDependency(t *testing.T) {
 	}
 
 	t.Logf("Sorted order: %v", sorted)
-	
+
 	// claude-code should be processed first (it's the dependency)
 	if sorted[0] != "/nix/store/claude-code" {
 		t.Errorf("Expected claude-code to be first, got %s", sorted[0])
 	}
-	
+
 	// profile should be processed second
 	if sorted[1] != "/nix/store/profile" {
 		t.Errorf("Expected profile to be second, got %s", sorted[1])

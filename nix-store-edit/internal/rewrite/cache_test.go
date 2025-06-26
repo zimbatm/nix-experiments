@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 	"time"
-	
+
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
@@ -20,7 +20,6 @@ func TestStoreCache_GetReferences(t *testing.T) {
 	// Note: Actual testing of GetReferences requires store operations
 	// This would be better as an integration test
 }
-
 
 func TestStoreCache_Concurrency(t *testing.T) {
 	s := store.New("/nix/store")

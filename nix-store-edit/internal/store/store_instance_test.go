@@ -6,9 +6,9 @@ import (
 
 func TestNew(t *testing.T) {
 	tests := []struct {
-		name     string
-		rootDir  string
-		wantRoot string
+		name      string
+		rootDir   string
+		wantRoot  string
 		wantStore string
 	}{
 		{
@@ -30,11 +30,11 @@ func TestNew(t *testing.T) {
 			wantStore: "./foo/nix/store",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := New(tt.rootDir)
-			
+
 			if s.RootDir != tt.wantRoot {
 				t.Errorf("RootDir = %q, want %q", s.RootDir, tt.wantRoot)
 			}
@@ -66,11 +66,11 @@ func TestExecNixArgs(t *testing.T) {
 			wantStore: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := New(tt.rootDir)
-			
+
 			// We can't easily test the actual command execution,
 			// but we can verify the store setup is correct
 			if tt.wantStore && s.RootDir == "" {

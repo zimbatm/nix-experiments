@@ -54,13 +54,13 @@ func CreateWithStore(oldPath, newPath string, s *store.Store) ([]byte, string, e
 
 	// Determine the store path to write
 	var storePath string
-	
+
 	// Extract derivation name from old path
 	sp, err := s.ParseStorePath(oldPath)
 	if err != nil {
 		return nil, "", errors.Wrap(err, errors.ErrCodeStore, "CreateWithStore.parseStorePath")
 	}
-	
+
 	if oldPath != newPath {
 		// Content has been modified, generate a new store path
 		newHash := store.GenerateContentHash(narData)

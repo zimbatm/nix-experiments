@@ -38,7 +38,7 @@ func TestExtractHash(t *testing.T) {
 	}
 
 	s := New("") // Default store
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := s.ExtractHash(tt.path); got != tt.want {
@@ -46,16 +46,16 @@ func TestExtractHash(t *testing.T) {
 			}
 		})
 	}
-	
+
 	// Test with custom store root
 	t.Run("custom store root", func(t *testing.T) {
 		customStore := New("/custom/root")
-		
+
 		hash := customStore.ExtractHash("/custom/root/nix/store/abc123-package")
 		if hash != "abc123" {
 			t.Errorf("Expected hash 'abc123', got '%s'", hash)
 		}
-		
+
 		// Should not extract from default store path
 		hash = customStore.ExtractHash("/nix/store/abc123-package")
 		if hash != "" {
@@ -98,7 +98,7 @@ func TestIsStorePath(t *testing.T) {
 	}
 
 	s := New("") // Default store at /nix/store
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := s.IsStorePath(tt.path); got != tt.want {
@@ -106,21 +106,20 @@ func TestIsStorePath(t *testing.T) {
 			}
 		})
 	}
-	
+
 	// Test with custom store root
 	t.Run("custom store root", func(t *testing.T) {
 		customStore := New("/custom/root")
-		
+
 		if !customStore.IsStorePath("/custom/root/nix/store/abc-pkg") {
 			t.Error("Expected custom store path to be valid")
 		}
-		
+
 		if customStore.IsStorePath("/nix/store/abc-pkg") {
 			t.Error("Expected default store path to be invalid for custom store")
 		}
 	})
 }
-
 
 func TestParseStorePath(t *testing.T) {
 	tests := []struct {
@@ -171,7 +170,7 @@ func TestParseStorePath(t *testing.T) {
 	}
 
 	s := New("") // Default store
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := s.ParseStorePath(tt.path)
@@ -189,20 +188,20 @@ func TestParseStorePath(t *testing.T) {
 			}
 		})
 	}
-	
+
 	// Test with custom store root
 	t.Run("custom store root", func(t *testing.T) {
 		customStore := New("/custom/root")
-		
+
 		info, err := customStore.ParseStorePath("/custom/root/nix/store/xyz789-test-pkg-1.0")
 		if err != nil {
 			t.Fatalf("ParseStorePath() error = %v", err)
 		}
-		
+
 		if info.Hash != "xyz789" || info.Name != "test-pkg-1.0" {
 			t.Errorf("ParseStorePath() = %+v, want Hash='xyz789', Name='test-pkg-1.0'", info)
 		}
-		
+
 		// Should fail for wrong store
 		_, err = customStore.ParseStorePath("/nix/store/abc123-package")
 		if err == nil {

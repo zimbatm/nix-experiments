@@ -85,4 +85,3 @@ func (c *StoreCache) GetNARData(path string) ([]byte, error) {
 
 	return data, nil
 }
-

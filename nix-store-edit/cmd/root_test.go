@@ -67,7 +67,7 @@ func TestShowUsage(t *testing.T) {
 	showUsage()
 
 	// Close writer and read output
-	w.Close()
+	_ = w.Close()
 	buf := make([]byte, 1024)
 	n, _ := r.Read(buf)
 	output := string(buf[:n])

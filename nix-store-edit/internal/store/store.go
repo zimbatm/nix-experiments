@@ -7,7 +7,6 @@ import (
 	"github.com/nix-community/go-nix/pkg/nixbase32"
 )
 
-
 // GenerateContentHash generates a content-based nix32 hash from NAR data
 // This mimics how Nix generates store path hashes from content
 func GenerateContentHash(narData []byte) string {
@@ -15,9 +14,7 @@ func GenerateContentHash(narData []byte) string {
 	hasher := sha256.New()
 	hasher.Write(narData)
 	hashBytes := hasher.Sum(nil)
-	
+
 	// Convert to nixbase32 (truncate to 20 bytes as Nix does)
 	return nixbase32.EncodeToString(hashBytes[:20])
 }
-
-

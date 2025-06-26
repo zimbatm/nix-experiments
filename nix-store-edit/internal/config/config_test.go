@@ -7,7 +7,7 @@ import (
 
 func TestNewConfig(t *testing.T) {
 	cfg := NewConfig()
-	
+
 	// Test default values
 	if cfg.Editor != DefaultEditor {
 		t.Errorf("Expected default editor %s, got %s", DefaultEditor, cfg.Editor)

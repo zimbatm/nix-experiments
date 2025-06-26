@@ -3,11 +3,10 @@ package rewrite
 
 import (
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 	"sync"
-	
+
 	"github.com/zimbatm/nix-experiments/nix-store-edit/internal/store"
 )
 
@@ -33,10 +32,10 @@ type Engine struct {
 
 	// dryRun mode - don't actually modify store
 	dryRun bool
-	
+
 	// storeDir is the path to the Nix store
 	storeDir string
-	
+
 	// store is the Nix store instance
 	store *store.Store
 }
@@ -96,11 +95,18 @@ type RollbackOp struct {
 
 // RewriteClosure rewrites an entire closure with pre-computed affected paths
 func (e *Engine) RewriteClosure(systemClosure, modifiedPath, newModifiedPath string, affectedPaths []string) (string, error) {
-	log.Printf("Starting closure rewrite: %s -> %s", modifiedPath, newModifiedPath)
-	log.Printf("Using pre-computed affected paths: %d paths", len(affectedPaths))
 
 	// Initialize with the user's modification
 	e.recordRewrite(modifiedPath, newModifiedPath)
+
+	// Filter out the already-rewritten path from the affected paths
+	var pathsToRewrite []string
+	for _, path := range affectedPaths {
+		if path != modifiedPath {
+			pathsToRewrite = append(pathsToRewrite, path)
+		}
+	}
+	// Continue with remaining paths
 
 	// Build dependency graph for sorting
 	graph, err := e.buildReverseDependencyGraph(systemClosure)
@@ -109,7 +115,7 @@ func (e *Engine) RewriteClosure(systemClosure, modifiedPath, newModifiedPath str
 	}
 
 	// Sort paths by dependency order (leaves first, roots last)
-	sortedPaths, err := e.topologicalSort(affectedPaths, graph)
+	sortedPaths, err := e.topologicalSort(pathsToRewrite, graph)
 	if err != nil {
 		return "", fmt.Errorf("failed to sort paths: %w", err)
 	}
@@ -117,16 +123,17 @@ func (e *Engine) RewriteClosure(systemClosure, modifiedPath, newModifiedPath str
 	// Rewrite each path in order
 	total := len(sortedPaths)
 	for i, path := range sortedPaths {
-		if e.onProgress != nil {
-			e.onProgress(i+1, total, path)
-		}
-
 		newPath, err := e.rewritePath(path)
 		if err != nil {
 			return "", e.rollback(fmt.Errorf("failed to rewrite %s: %w", path, err))
 		}
 
 		e.recordRewrite(path, newPath)
+
+		// Only show progress for paths that actually changed
+		if e.onProgress != nil && newPath != path {
+			e.onProgress(i+1, total, fmt.Sprintf("%s -> %s", path, newPath))
+		}
 	}
 
 	// Return the new system closure
@@ -135,9 +142,7 @@ func (e *Engine) RewriteClosure(systemClosure, modifiedPath, newModifiedPath str
 		return "", fmt.Errorf("system closure was not rewritten")
 	}
 
-	if e.dryRun {
-		log.Printf("DRY-RUN: Would have created new system closure: %s", newClosure)
-	}
+	// Dry-run logging is handled by the caller
 
 	return newClosure, nil
 }
@@ -166,7 +171,7 @@ func (e *Engine) getRewrite(oldPath string) (string, bool) {
 func (e *Engine) GetPlannedRewrites() map[string]string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	
+
 	// Return a copy to avoid concurrent modification
 	result := make(map[string]string)
 	for old, new := range e.rewrites {
@@ -177,8 +182,6 @@ func (e *Engine) GetPlannedRewrites() map[string]string {
 
 // rollback undoes all operations
 func (e *Engine) rollback(err error) error {
-	log.Printf("Rolling back %d operations due to: %v", len(e.rollbackStack), err)
-
 	// TODO: Implement actual rollback logic
 	// For now, just clear the state
 	e.rewrites = make(map[string]string)
@@ -235,7 +238,6 @@ func (e *Engine) buildReverseDependencyGraph(root string) (*DependencyGraph, err
 
 	return graph, nil
 }
-
 
 // topologicalSort sorts paths by dependency order
 func (e *Engine) topologicalSort(paths []string, graph *DependencyGraph) ([]string, error) {

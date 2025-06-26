@@ -3,8 +3,6 @@ package store
 
 import (
 	"fmt"
-	"log"
-	"os"
 	"regexp"
 	"strings"
 )
@@ -36,11 +34,6 @@ func (dg *DependencyGraph) FindPathToRoot(target string) []string {
 		closureChain[i], closureChain[j] = closureChain[j], closureChain[i]
 	}
 
-	log.Println("Dependency chain from root to target:")
-	for _, p := range closureChain {
-		fmt.Fprintln(os.Stderr, p)
-	}
-
 	return closureChain
 }
 
@@ -68,13 +61,13 @@ func (s *Store) BuildDependencyChain(systemClosure, storePath string) (*Dependen
 // parseWhyDependsOutput parses the output of 'nix why-depends --all' to extract dependency information
 func parseWhyDependsOutput(output, systemClosure, targetPath, storeDir string) (*DependencyGraph, []string, []string, error) {
 	dg := NewDependencyGraph()
-	
+
 	// Track all paths that depend on the target
 	dependentPaths := make(map[string]bool)
-	
+
 	// Split output into lines
 	lines := strings.Split(output, "\n")
-	
+
 	// Parse the tree structure
 	// The output format is like:
 	// /nix/store/abc-system
@@ -82,18 +75,18 @@ func parseWhyDependsOutput(output, systemClosure, targetPath, storeDir string) (
 	// │   └───/nix/store/target-path
 	// └───/nix/store/ghi-other
 	//     └───/nix/store/target-path
-	
+
 	pathStack := []string{}
 	indentStack := []int{-1}
-	
+
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
-		
+
 		// Remove ANSI color codes
 		line = stripAnsiCodes(line)
-		
+
 		// Calculate indentation level
 		indent := 0
 		for _, ch := range line {
@@ -103,30 +96,30 @@ func parseWhyDependsOutput(output, systemClosure, targetPath, storeDir string) (
 				break
 			}
 		}
-		
+
 		// Extract the store path from the line
 		storePath := extractStorePathWithDir(line, storeDir)
 		if storePath == "" {
 			continue
 		}
-		
+
 		// Adjust stack based on indentation
 		for len(indentStack) > 1 && indent <= indentStack[len(indentStack)-1] {
 			pathStack = pathStack[:len(pathStack)-1]
 			indentStack = indentStack[:len(indentStack)-1]
 		}
-		
+
 		// Add current path to stack
 		pathStack = append(pathStack, storePath)
 		indentStack = append(indentStack, indent)
-		
+
 		// If this is the target path, record all paths in the stack as dependent
 		if storePath == targetPath {
 			for _, p := range pathStack {
 				dependentPaths[p] = true
 			}
 		}
-		
+
 		// Build parent-child relationships
 		if len(pathStack) > 1 {
 			parent := pathStack[len(pathStack)-2]
@@ -134,23 +127,18 @@ func parseWhyDependsOutput(output, systemClosure, targetPath, storeDir string) (
 			dg.parents[child] = parent
 		}
 	}
-	
+
 	// Build closure chain from target to system closure
 	closureChain := dg.FindPathToRoot(targetPath)
-	
+
 	// Convert dependent paths map to slice
 	affectedPaths := make([]string, 0, len(dependentPaths))
 	for path := range dependentPaths {
 		affectedPaths = append(affectedPaths, path)
 	}
-	
-	// Log all paths that need to be rewritten
-	log.Printf("Found %d paths that depend on %s", len(affectedPaths), targetPath)
-	log.Println("Affected paths:")
-	for _, p := range affectedPaths {
-		log.Printf("  %s", p)
-	}
-	
+
+	// Don't log here - let the caller decide what to show
+
 	return dg, closureChain, affectedPaths, nil
 }
 
@@ -169,15 +157,15 @@ func extractStorePathWithDir(line, storeDir string) string {
 	if idx == -1 {
 		return ""
 	}
-	
+
 	// Extract the path starting from store dir
 	path := line[idx:]
-	
+
 	// Find the end of the path (space or end of line)
 	endIdx := strings.IndexAny(path, " \t")
 	if endIdx != -1 {
 		path = path[:endIdx]
 	}
-	
+
 	return path
 }

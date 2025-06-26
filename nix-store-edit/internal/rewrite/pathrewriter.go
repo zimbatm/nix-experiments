@@ -4,7 +4,6 @@ package rewrite
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,11 +17,8 @@ import (
 func (e *Engine) rewritePath(path string) (string, error) {
 	// Check if already rewritten
 	if newPath, ok := e.getRewrite(path); ok {
-		log.Printf("Path already rewritten: %s -> %s", path, newPath)
 		return newPath, nil
 	}
-
-	log.Printf("Rewriting path: %s", path)
 
 	// Create a temporary directory for extraction
 	tempDir, err := os.MkdirTemp("", constants.RewriteTempDirPrefix)
@@ -30,9 +26,7 @@ func (e *Engine) rewritePath(path string) (string, error) {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			log.Printf("Failed to clean up temp directory: %v", err)
-		}
+		os.RemoveAll(tempDir)
 	}()
 
 	// Extract the path contents
@@ -52,7 +46,6 @@ func (e *Engine) rewritePath(path string) (string, error) {
 		return "", fmt.Errorf("failed to create new store path: %w", err)
 	}
 
-	log.Printf("Successfully rewrote: %s -> %s", path, newPath)
 	return newPath, nil
 }
 
@@ -112,7 +105,7 @@ func (e *Engine) rewriteFile(filePath string) error {
 		if oldHash != "" && newHash != "" && bytes.Contains(data, []byte(oldHash)) {
 			data = bytes.ReplaceAll(data, []byte(oldHash), []byte(newHash))
 			modified = true
-			log.Printf("Replaced %s with %s in %s", oldHash, newHash, filePath)
+			// Hash replaced successfully
 		}
 	}
 	e.mu.RUnlock()
@@ -170,7 +163,7 @@ func (e *Engine) rewriteSymlink(linkPath string) error {
 		if err := os.Symlink(newTarget, linkPath); err != nil {
 			return fmt.Errorf("failed to create new symlink: %w", err)
 		}
-		log.Printf("Updated symlink %s: %s -> %s", linkPath, target, newTarget)
+		// Symlink updated successfully
 	}
 
 	return nil
@@ -185,7 +178,6 @@ func (e *Engine) createNewStorePath(originalPath, contentsPath string) (string, 
 	}
 
 	if e.dryRun {
-		log.Printf("DRY-RUN: Would create new store path: %s", newPath)
 		return newPath, nil
 	}
 
@@ -195,12 +187,7 @@ func (e *Engine) createNewStorePath(originalPath, contentsPath string) (string, 
 		return "", fmt.Errorf("failed to import to store: %w", err)
 	}
 
-	// Verify the imported path matches what we expected
-	if importedPath != newPath {
-		log.Printf("Warning: imported path differs from expected: got %s, expected %s", importedPath, newPath)
-	}
+	// Return the imported path even if it differs from expected
 
 	return importedPath, nil
 }
-
-
