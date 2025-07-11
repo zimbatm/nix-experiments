@@ -1,0 +1,43 @@
+-> Welcome to nix-store-edit!
+Editor: sed -i -f edit.sed
+System closure: /nix/store/5752m8xfra3m2pkw4pmz6jzs47fyzji8-profile
+Target store path: /nix/store/psy9v2asypgl9ylg8cnzkixc7fv0snj0-coreutils-9.7/bin/ls
+
+→ [DRY RUN] 1. Opening editor
+
+→ [DRY RUN] Reviewing changes
+Binary files /nix/store/psy9v2asypgl9ylg8cnzkixc7fv0snj0-coreutils-9.7/bin/ls and /tmp/nix-shell.hWj6eG/nix-patch-2380406018/coreutils-9.7/bin/ls differ
+
+   nix why-depends took: 110.310854ms
+
+→ [DRY RUN] 2. Importing modified package
+  Step 2 completed in: 54.928438ms
+
+/nix/store/psy9v2asypgl9ylg8cnzkixc7fv0snj0-coreutils-9.7 -> /nix/store/yp6rz9n80sn64216xffb023950ns3gf9-coreutils-9.7
+
+→ [DRY RUN] 3. Updating system references
+   Building dependency graph for 4 affected paths...
+   Dependency graph built in: 45.351235ms
+   Paths to process: 4
+   nix-store --dump for v5m05qvmza8b8922n42mgsisb05zllm3-nodejs-20.19.2 took: 604.326078ms
+   NAR extraction for v5m05qvmza8b8922n42mgsisb05zllm3-nodejs-20.19.2 took: 755.983575ms
+   NAR creation for v5m05qvmza8b8922n42mgsisb05zllm3-nodejs-20.19.2 took: 250.49342ms
+[1/4] /nix/store/v5m05qvmza8b8922n42mgsisb05zllm3-nodejs-20.19.2 -> /nix/store/rc5glag68h3gc9v7i6wi75b53xr7as7h-nodejs-20.19.2
+   nix-store --dump for gmlrn140942vcs5j71glay4bkwh41bgq-claude-code-1.0.33 took: 315.690682ms
+   NAR extraction for gmlrn140942vcs5j71glay4bkwh41bgq-claude-code-1.0.33 took: 431.714201ms
+   NAR creation for gmlrn140942vcs5j71glay4bkwh41bgq-claude-code-1.0.33 took: 582.313814ms
+[2/4] /nix/store/gmlrn140942vcs5j71glay4bkwh41bgq-claude-code-1.0.33 -> /nix/store/ryfzq4ia01awgxpdy2qnp3iibpbyn548-claude-code-1.0.33
+[3/4] /nix/store/5752m8xfra3m2pkw4pmz6jzs47fyzji8-profile -> /nix/store/nl7wmslhvm9fpl31dqpgxhhdwxmj1ap6-profile
+[4/4] /nix/store/1bbi36a6x3dxkbg0lavcp7hkgp26kw5r-icu4c-76.1-dev -> /nix/store/1z8y3rz1f0vpv7chxgxqp0l5gv0gqwz1-icu4c-76.1-dev
+  Step 3 completed in: 2.567538702s
+
+→ [DRY RUN] Preview of changes
+Paths to rewrite:
+  • 1bbi36a6x3dxkbg0lavcp7hkgp26kw5r-icu4c-76.1-dev → 1z8y3rz1f0vpv7chxgxqp0l5gv0gqwz1-icu4c-76.1-dev
+  • 5752m8xfra3m2pkw4pmz6jzs47fyzji8-profile → nl7wmslhvm9fpl31dqpgxhhdwxmj1ap6-profile
+  • gmlrn140942vcs5j71glay4bkwh41bgq-claude-code-1.0.33 → ryfzq4ia01awgxpdy2qnp3iibpbyn548-claude-code-1.0.33
+  • psy9v2asypgl9ylg8cnzkixc7fv0snj0-coreutils-9.7 → yp6rz9n80sn64216xffb023950ns3gf9-coreutils-9.7
+  • v5m05qvmza8b8922n42mgsisb05zllm3-nodejs-20.19.2 → rc5glag68h3gc9v7i6wi75b53xr7as7h-nodejs-20.19.2
+  Command to execute:
+    nix-env --profile /home/zimbatm/.nix-profile --set /nix/store/nl7wmslhvm9fpl31dqpgxhhdwxmj1ap6-profile
+  No changes applied (dry-run mode)
