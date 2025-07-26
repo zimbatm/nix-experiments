@@ -4,9 +4,11 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    gorefresh.url = "github:draganm/gorefresh?ref=tags/v0.0.4";
+    gorefresh.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, gorefresh }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -17,13 +19,40 @@
             pname = "chronixpkgs";
             version = "0.1.0";
             src = self;
-            vendorHash = "sha256-k3KE6cvRpXQ0bLEDj08+pg1Zecx1P+VPYpdktjrUqWY=";
+            vendorHash = "sha256-2u+soOQvX0Q+EX66kN0g3S1dSr0SgsnEks0HVSuCqU0=";
+            
+            # Include templates and static files in the build
+            postInstall = ''
+              mkdir -p $out/share/chronixpkgs
+              cp -r ${self}/templates $out/share/chronixpkgs/
+              cp -r ${self}/static $out/share/chronixpkgs/
+            '';
             
             meta = with pkgs.lib; {
               description = "Chronixpkgs - Public event chronicle for nixpkgs";
               homepage = "https://github.com/zimbatm/nix-experiments/chronixpkgs";
               license = licenses.mit;
             };
+          };
+          
+          jaeger = pkgs.buildGoModule rec {
+            pname = "jaeger";
+            version = "1.52.0";
+            
+            src = pkgs.fetchFromGitHub {
+              owner = "jaegertracing";
+              repo = "jaeger";
+              rev = "v${version}";
+              sha256 = "sha256-jeI+Iw1vTbD0NhtmmcT7RzWKnfFvXX0O8iRvABRRmbA=";
+            };
+            
+            vendorHash = "sha256-j0J1hCkRYXJLawmf9Yb0xPf1DCjlslj3dBPBIltnBP0=";
+            
+            subPackages = [ "cmd/all-in-one" ];
+            
+            postInstall = ''
+              mv $out/bin/all-in-one $out/bin/jaeger-all-in-one
+            '';
           };
         };
 
@@ -35,6 +64,11 @@
             gotools
             go-tools
             sqlite
+            hivemind
+            watch
+            jq
+            curl
+            gorefresh.packages.${system}.default
           ];
         };
 

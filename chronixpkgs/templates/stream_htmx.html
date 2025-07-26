@@ -1,0 +1,28 @@
+{{template "base" .}}
+
+{{define "title"}}Live Event Stream{{end}}
+
+{{define "content"}}
+<div class="card">
+    <h2>Live Event Stream</h2>
+    <p style="color: var(--text-secondary);">Events appear in real-time as they happen.</p>
+</div>
+
+<div class="card">
+    <!-- Use HTMX with SSE for live streaming -->
+    <div hx-ext="sse" 
+         sse-connect="/events/stream" 
+         sse-swap="event">
+        
+        <!-- This div will receive events -->
+        <div id="event-stream" 
+             hx-swap="afterbegin">
+            <!-- Events will be prepended here -->
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js"></script>
+{{end}}

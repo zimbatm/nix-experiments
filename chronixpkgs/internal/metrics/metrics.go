@@ -78,15 +78,6 @@ var (
 		},
 	)
 
-	// Webhook metrics
-	WebhooksReceivedTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "chronixpkgs_webhooks_received_total",
-			Help: "Total number of webhooks received",
-		},
-		[]string{"event_type", "status"},
-	)
-
 	// Rate limiter metrics
 	RateLimitRejectionsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
@@ -160,13 +151,4 @@ func RecordGitHubAPICall(endpoint string, statusCode int) {
 		status = "error"
 	}
 	GitHubAPICallsTotal.WithLabelValues(endpoint, status).Inc()
-}
-
-// RecordWebhook records webhook reception metrics
-func RecordWebhook(eventType string, success bool) {
-	status := "success"
-	if !success {
-		status = "failure"
-	}
-	WebhooksReceivedTotal.WithLabelValues(eventType, status).Inc()
 }

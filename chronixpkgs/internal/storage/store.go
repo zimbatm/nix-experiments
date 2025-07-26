@@ -25,10 +25,15 @@ type FetchState struct {
 }
 
 type EventFilter struct {
-	Repo       string
-	Since      time.Time
-	EventTypes []string
-	Limit      int
+	Repo        string
+	Since       time.Time
+	SinceID     string
+	EventTypes  []string
+	Actor       string
+	PRNumber    int
+	IssueNumber int
+	Limit       int
+	Offset      int
 }
 
 type Store interface {
@@ -36,6 +41,7 @@ type Store interface {
 	GetEvents(ctx context.Context, repo string, since time.Time, limit int) ([]Event, error)
 	GetEventsFiltered(ctx context.Context, filter EventFilter) ([]Event, error)
 	GetEventsAfterId(ctx context.Context, repo string, afterID string, limit int) ([]Event, error)
+	GetEventCount(ctx context.Context, repo string) (int64, error)
 	GetFetchState(ctx context.Context, repo string) (*FetchState, error)
 	UpdateFetchState(ctx context.Context, state *FetchState) error
 	ListEventTypes(ctx context.Context, repo string) ([]string, error)

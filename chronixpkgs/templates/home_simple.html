@@ -1,0 +1,19 @@
+{{template "base" .}}
+
+{{define "title"}}Recent Events{{end}}
+
+{{define "content"}}
+<div class="card">
+    <h2>Recent Events</h2>
+    
+    <!-- Auto-refreshing events list using HTMX polling -->
+    <div id="events-container"
+         hx-get="/events-partial?limit=50" 
+         hx-trigger="load, every 10s"
+         hx-swap="innerHTML">
+        Loading events...
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}{{end}}

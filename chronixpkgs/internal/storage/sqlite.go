@@ -15,22 +15,32 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// File system permissions
 const (
-	// Directory permissions
-	dirPerms = 0755
+	dirPerms  = 0755
 	filePerms = 0644
-	
-	// Database configuration
-	dbCacheSize = 10000
-	dbBusyTimeout = 5000
-	dbMaxOpenConns = 25
-	dbMaxIdleConns = 5
-	dbConnMaxLifetime = 5 * time.Minute
-	
-	// Batch processing
-	eventBatchSize = 100
-	
-	// Partition optimization threshold
+)
+
+// Database configuration
+type dbConfig struct {
+	CacheSize       int
+	BusyTimeout     int // milliseconds
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+}
+
+var defaultDBConfig = dbConfig{
+	CacheSize:       10000,
+	BusyTimeout:     5000,
+	MaxOpenConns:    25,
+	MaxIdleConns:    5,
+	ConnMaxLifetime: 5 * time.Minute,
+}
+
+// Processing configuration
+const (
+	eventBatchSize              = 100
 	partitionOptimizationMonths = 3
 )
 
@@ -48,7 +58,8 @@ func NewSQLiteStore(dataDir string) (*SQLiteStore, error) {
 
 	dbPath := filepath.Join(dataDir, "events.db")
 	// Enable WAL mode and other optimizations
-	db, err := sql.Open("sqlite3", fmt.Sprintf("%s?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=%d&_busy_timeout=%d", dbPath, dbCacheSize, dbBusyTimeout))
+	db, err := sql.Open("sqlite3", fmt.Sprintf("%s?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=%d&_busy_timeout=%d",
+		dbPath, defaultDBConfig.CacheSize, defaultDBConfig.BusyTimeout))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -74,9 +85,9 @@ func NewSQLiteStore(dataDir string) (*SQLiteStore, error) {
 	}
 
 	// Set connection pool settings
-	db.SetMaxOpenConns(dbMaxOpenConns)
-	db.SetMaxIdleConns(dbMaxIdleConns)
-	db.SetConnMaxLifetime(dbConnMaxLifetime)
+	db.SetMaxOpenConns(defaultDBConfig.MaxOpenConns)
+	db.SetMaxIdleConns(defaultDBConfig.MaxIdleConns)
+	db.SetConnMaxLifetime(defaultDBConfig.ConnMaxLifetime)
 
 	store := &SQLiteStore{
 		db:            db,
@@ -317,7 +328,7 @@ func (s *SQLiteStore) SaveEvents(ctx context.Context, events []Event) error {
 				if err := ctx.Err(); err != nil {
 					return err
 				}
-				
+
 				end := i + eventBatchSize
 				if end > len(dateEvents) {
 					end = len(dateEvents)
@@ -513,9 +524,27 @@ func (s *SQLiteStore) UpdateFetchState(ctx context.Context, state *FetchState) e
 func (s *SQLiteStore) GetEventsFiltered(ctx context.Context, filter EventFilter) ([]Event, error) {
 	query := `SELECT id, repo, event_type, actor, created_at, payload 
 		FROM events 
-		WHERE repo = ? AND created_at > ?`
+		WHERE repo = ?`
 
-	args := []interface{}{filter.Repo, filter.Since}
+	args := []interface{}{filter.Repo}
+
+	// Add time-based filter
+	if !filter.Since.IsZero() {
+		query += " AND created_at > ?"
+		args = append(args, filter.Since)
+	}
+
+	// Add ID-based filter (for pagination/resumption)
+	if filter.SinceID != "" {
+		// First get the timestamp of the since ID
+		var sinceTime time.Time
+		err := s.db.QueryRowContext(ctx,
+			"SELECT created_at FROM events WHERE id = ?", filter.SinceID).Scan(&sinceTime)
+		if err == nil {
+			query += " AND (created_at > ? OR (created_at = ? AND id > ?))"
+			args = append(args, sinceTime, sinceTime, filter.SinceID)
+		}
+	}
 
 	// Add event type filter if specified
 	if len(filter.EventTypes) > 0 {
@@ -529,8 +558,40 @@ func (s *SQLiteStore) GetEventsFiltered(ctx context.Context, filter EventFilter)
 		}
 	}
 
-	query += " ORDER BY created_at DESC LIMIT ?"
-	args = append(args, filter.Limit)
+	// Add actor filter
+	if filter.Actor != "" {
+		query += " AND actor = ?"
+		args = append(args, filter.Actor)
+	}
+
+	// Add PR number filter
+	if filter.PRNumber > 0 {
+		query += ` AND (event_type = 'PullRequestEvent' OR event_type = 'PullRequestReviewEvent' 
+			OR event_type = 'PullRequestReviewCommentEvent') 
+			AND json_extract(payload, '$.pull_request.number') = ?`
+		args = append(args, filter.PRNumber)
+	}
+
+	// Add issue number filter
+	if filter.IssueNumber > 0 {
+		query += ` AND (event_type = 'IssuesEvent' OR event_type = 'IssueCommentEvent') 
+			AND json_extract(payload, '$.issue.number') = ?`
+		args = append(args, filter.IssueNumber)
+	}
+
+	query += " ORDER BY created_at DESC, id DESC"
+
+	// Add limit
+	if filter.Limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, filter.Limit)
+	}
+
+	// Add offset for pagination
+	if filter.Offset > 0 {
+		query += " OFFSET ?"
+		args = append(args, filter.Offset)
+	}
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -573,6 +634,18 @@ func (s *SQLiteStore) ListEventTypes(ctx context.Context, repo string) ([]string
 	}
 
 	return eventTypes, rows.Err()
+}
+
+func (s *SQLiteStore) GetEventCount(ctx context.Context, repo string) (int64, error) {
+	query := `SELECT COUNT(*) FROM events WHERE repo = ?`
+
+	var count int64
+	err := s.db.QueryRowContext(ctx, query, repo).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }
 
 func (s *SQLiteStore) GetEventsAfterId(ctx context.Context, repo string, afterID string, limit int) ([]Event, error) {

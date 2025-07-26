@@ -51,13 +51,21 @@ GitHub Events → SQLite (Monthly Partitions) → Parquet Files → S3/Object St
 
 ### Automatic Monthly Archival
 
+The fetcher command handles automatic archival:
+
 ```go
-// Every month, automatically:
-1. Export partition to Parquet
-2. Upload to S3
-3. Verify upload
-4. Drop SQLite partition
-5. Update metadata
+// Periodically (based on vacuum-interval):
+1. Archive old partitions based on retention
+2. If S3 export is enabled:
+   - Export daily events to JSONL
+   - Upload to S3 bucket
+   - Verify upload
+3. Clean up old SQLite partitions
+```
+
+For manual archival, use the archive command:
+```bash
+./chronixpkgs archive --s3-export --start-date 2025-01-01 --end-date 2025-01-31
 ```
 
 ### Query Federation
@@ -97,7 +105,7 @@ message Event {
 - Recent events (< 90 days)
 - Low latency queries
 - Event streaming (SSE)
-- Webhook processing
+- Polling-based updates (no webhooks)
 
 ### Analytical Access (Parquet)
 - Historical analysis
@@ -125,13 +133,21 @@ region = "us-east-1"
 endpoint = "https://s3.example.com"
 ```
 
+## Current Implementation
+
+1. **Polling Architecture**: No webhooks, reliable polling-based fetching
+2. **Separation of Concerns**: Fetcher handles writes, server is read-only
+3. **Integrated Maintenance**: Vacuum and S3 export built into fetcher
+4. **Manual Archive Command**: For on-demand exports and maintenance
+5. **JSONL Format**: Simple, efficient format for S3 storage
+
 ## Future Enhancements
 
 1. **Query Federation**: Seamlessly query across hot and cold storage
-2. **Automatic Rehydration**: Pull Parquet data back to SQLite for specific queries
-3. **Delta Lake Format**: For ACID transactions on S3
-4. **Iceberg Tables**: For better partition management
-5. **Materialized Views**: Pre-aggregate common queries in Parquet
+2. **Automatic Rehydration**: Pull archived data back to SQLite for specific queries
+3. **Parquet Support**: Convert JSONL to Parquet for better compression
+4. **Delta Lake Format**: For ACID transactions on S3
+5. **Materialized Views**: Pre-aggregate common queries
 
 ## Cost Analysis
 

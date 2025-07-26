@@ -36,10 +36,16 @@ go test ./...
 ```bash
 # Set required environment variables
 export GITHUB_TOKEN="your_github_token"
-export WEBHOOK_SECRET="test_secret"
 
-# Run the service
-go run . --repo "NixOS/nixpkgs"
+# Run both server and fetcher
+./dev.sh
+
+# Or run components separately:
+# Terminal 1 - Run server (read-only)
+go run . server --listen :8080
+
+# Terminal 2 - Run fetcher (write operations)
+go run . fetch --repo NixOS/nixpkgs --poll-interval 1m
 ```
 
 ## Code Structure
@@ -47,16 +53,20 @@ go run . --repo "NixOS/nixpkgs"
 ```
 chronixpkgs/
 ├── main.go                    # Main application entry point
-├── internal/                  # Private application code
-│   ├── fetcher/              # GitHub API client
-│   ├── storage/              # Storage layer (SQLite)
-│   ├── webhook/              # Webhook handler
-│   ├── server/               # HTTP server and API
-│   └── graphql/              # GraphQL schema and resolvers
-│   ├── server/               # HTTP server and API
-│   └── graphql/              # GraphQL schema and resolvers
-├── docs/                     # Documentation
-└── tests/                    # Integration tests
+├── cmd/
+│   └── chronixpkgs/          # Command implementations
+│       ├── main.go           # Command dispatcher
+│       ├── server.go         # Server command (read-only)
+│       ├── fetch.go          # Fetcher command (write)
+│       └── archive.go        # Archive command (maintenance)
+├── internal/                 # Private application code
+│   ├── fetcher/             # GitHub API polling client
+│   ├── storage/             # Storage layer (SQLite + S3)
+│   ├── server/              # HTTP server and API
+│   ├── metrics/             # Prometheus metrics
+│   └── logger/              # Structured logging
+├── docs/                    # Documentation
+└── templates/               # Web UI templates
 ```
 
 ## Development Guidelines
@@ -110,7 +120,7 @@ go tool cover -html=coverage.out
 Follow conventional commits:
 
 ```
-feat: add GraphQL endpoint for flexible queries
+feat: add new REST endpoint for flexible queries
 fix: correct event deduplication in batch insert
 docs: add deployment guide
 perf: optimize partition queries with better indexes
@@ -197,21 +207,25 @@ go test -bench=. -benchmem ./...
 - [ ] Breaking changes documented
 - [ ] Example config updated (if needed)
 
-## Testing Webhooks Locally
+## Testing the Polling System
 
-Use ngrok for local webhook testing:
+The system uses polling instead of webhooks. To test:
 
 ```bash
-# Start ngrok
-ngrok http 8080
+# Run with short polling interval for testing
+go run . fetch --repo NixOS/nixpkgs --poll-interval 30s --once
 
-# Configure GitHub webhook with ngrok URL
-# https://xxxxx.ngrok.io/webhook/github
+# Or use the development script which includes both server and fetcher
+./dev.sh
 ```
 
-Or use the webhook tester:
+To test the archive command:
 ```bash
-go run ./cmd/webhook-tester --secret your-secret
+# Test vacuum
+go run . archive --vacuum --data-dir ./data
+
+# Test S3 export
+go run . archive --s3-export --days-back 1
 ```
 
 ## Debugging

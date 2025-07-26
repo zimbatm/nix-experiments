@@ -19,7 +19,7 @@ curl "https://events.nixos.org/events?since=2024-01-15T00:00:00Z"
 
 ```javascript
 const eventSource = new EventSource(
-  'https://events.nixos.org/events/stream'
+  'https://events.nixos.org/events'
 );
 
 eventSource.onmessage = (e) => {
@@ -28,21 +28,20 @@ eventSource.onmessage = (e) => {
 };
 ```
 
-### Query with GraphQL
+### Advanced Filtering
 
-Visit https://events.nixos.org/graphql for interactive GraphiQL interface.
+```bash
+# Filter by username
+curl "https://events.nixos.org/events?actor=alice"
 
-```graphql
-{
-  events(limit: 10) {
-    events {
-      id
-      type
-      actor
-      createdAt
-    }
-  }
-}
+# Filter by PR number
+curl "https://events.nixos.org/events?pr=12345"
+
+# Filter by issue number  
+curl "https://events.nixos.org/events?issue=67890"
+
+# Combined filters
+curl "https://events.nixos.org/events?type=PullRequestEvent&actor=bob&since=2024-01-15T00:00:00Z"
 ```
 
 ## For Operators
@@ -55,27 +54,28 @@ nix build .#chronixpkgs
 
 # 2. Set environment variables (or use flags)
 export GITHUB_TOKEN="ghp_your_token_here"
-export WEBHOOK_SECRET="your_webhook_secret"
 
-# 3. Run with defaults
-./result/bin/chronixpkgs
-
-# Or with custom options
-./result/bin/chronixpkgs \
-  --repo "NixOS/nixpkgs" \
+# 3. Run server (read-only API)
+./result/bin/chronixpkgs server \
   --listen ":8080" \
   --data-dir "./data" \
-  --poll-interval 5m \
-  --enable-cors
+  --enable-cors &
+
+# 4. Run fetcher (polling + maintenance)
+./result/bin/chronixpkgs fetch \
+  --repo "NixOS/nixpkgs" \
+  --data-dir "./data" \
+  --poll-interval 1m \
+  --vacuum-interval 24h
 ```
 
-### Configure GitHub Webhook
+### No Webhook Configuration Needed!
 
-1. Go to: https://github.com/NixOS/nixpkgs/settings/hooks
-2. Add webhook:
-   - URL: `https://your-domain/webhook/github`
-   - Secret: `your_webhook_secret`
-   - Events: "Send me everything"
+Chronixpkgs uses a polling-only approach:
+- No webhook setup required
+- Fetcher polls GitHub API regularly
+- More reliable than webhooks
+- Works behind firewalls
 
 ## Common Use Cases
 
@@ -101,19 +101,10 @@ curl "https://events.nixos.org/events?type=ReleaseEvent"
 
 ### Analyze Activity
 
-```graphql
-# GraphQL: Events by type in last 24h
-{
-  events(
-    since: "2024-01-14T00:00:00Z"
-    limit: 1000
-  ) {
-    events {
-      type
-      actor
-    }
-  }
-}
+```bash
+# REST API: Events by type in last 24h
+curl "https://events.nixos.org/events?since=2024-01-14T00:00:00Z&limit=1000" | \
+  jq 'group_by(.type) | map({type: .[0].type, count: length})'
 ```
 
 ### Build Dashboard
@@ -152,9 +143,10 @@ print(json.dumps(by_type, indent=2))
 ## Troubleshooting
 
 ### No events appearing?
-- Check webhook is configured correctly
-- Verify webhook secret matches
-- Look at webhook delivery history in GitHub
+- Check GitHub token is valid
+- Verify fetcher is running
+- Check fetcher logs for API errors
+- Ensure polling interval isn't too long
 
 ### Connection drops?
 - SSE will auto-reconnect with last event ID

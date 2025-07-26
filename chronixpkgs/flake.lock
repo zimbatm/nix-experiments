@@ -1,5 +1,27 @@
 {
   "nodes": {
+    "blueprint": {
+      "inputs": {
+        "nixpkgs": [
+          "gorefresh",
+          "nixpkgs"
+        ],
+        "systems": "systems_2"
+      },
+      "locked": {
+        "lastModified": 1727784414,
+        "narHash": "sha256-t3olvkbnZsv/XGFocOWnU+Hy+tT7QuzY2RecGWKs8WU=",
+        "owner": "numtide",
+        "repo": "blueprint",
+        "rev": "be8a5dbb413a047ef95334b17f51541b29be17ee",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "blueprint",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -15,6 +37,28 @@
       "original": {
         "owner": "numtide",
         "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "gorefresh": {
+      "inputs": {
+        "blueprint": "blueprint",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1730386180,
+        "narHash": "sha256-hzylZNcvRECQfDaiUva4LpK+FRRkvrPLz3hI0XiQJKc=",
+        "owner": "draganm",
+        "repo": "gorefresh",
+        "rev": "ec56cca15b6247ecd72fa0564ed564f2b359e78b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "draganm",
+        "ref": "tags/v0.0.4",
+        "repo": "gorefresh",
         "type": "github"
       }
     },
@@ -37,10 +81,26 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "gorefresh": "gorefresh",
         "nixpkgs": "nixpkgs"
       }
     },
     "systems": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
+        "type": "github"
+      }
+    },
+    "systems_2": {
       "locked": {
         "lastModified": 1681028828,
         "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",

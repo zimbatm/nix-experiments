@@ -8,12 +8,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	promexporter "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
@@ -24,23 +23,22 @@ import (
 
 // Config holds observability configuration
 type Config struct {
-	ServiceName     string
-	ServiceVersion  string
-	Environment     string
-	OTLPEndpoint    string // OTLP gRPC endpoint for traces
-	EnableTracing   bool
-	EnableMetrics   bool
-	PrometheusPort  int
+	ServiceName    string
+	ServiceVersion string
+	Environment    string
+	OTLPEndpoint   string // OTLP gRPC endpoint for traces
+	EnableTracing  bool
+	EnableMetrics  bool
 }
 
 // Provider holds the observability providers
 type Provider struct {
-	TracerProvider  trace.TracerProvider
-	MeterProvider   metric.MeterProvider
-	Tracer          trace.Tracer
-	Meter           metric.Meter
-	config          Config
-	promRegistry    *prometheus.Registry
+	TracerProvider trace.TracerProvider
+	MeterProvider  metric.MeterProvider
+	Tracer         trace.Tracer
+	Meter          metric.Meter
+	config         Config
+	promRegistry   *prometheus.Registry
 }
 
 // Setup initializes OpenTelemetry providers
@@ -130,7 +128,7 @@ func setupTracing(ctx context.Context, res *resource.Resource, endpoint string) 
 }
 
 // setupMetrics configures the OpenTelemetry metrics provider
-func setupMetrics(res *resource.Resource) (*metric.MeterProvider, *prometheus.Registry, error) {
+func setupMetrics(res *resource.Resource) (*sdkmetric.MeterProvider, *prometheus.Registry, error) {
 	// Create Prometheus registry
 	reg := prometheus.NewRegistry()
 
@@ -145,9 +143,9 @@ func setupMetrics(res *resource.Resource) (*metric.MeterProvider, *prometheus.Re
 	}
 
 	// Create meter provider
-	mp := metric.NewMeterProvider(
-		metric.WithResource(res),
-		metric.WithReader(exporter),
+	mp := sdkmetric.NewMeterProvider(
+		sdkmetric.WithResource(res),
+		sdkmetric.WithReader(exporter),
 	)
 
 	return mp, reg, nil
@@ -163,7 +161,7 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 	}
 
 	// Shutdown meter provider
-	if mp, ok := p.MeterProvider.(*metric.MeterProvider); ok && mp != nil {
+	if mp, ok := p.MeterProvider.(*sdkmetric.MeterProvider); ok && mp != nil {
 		if err := mp.Shutdown(ctx); err != nil {
 			return fmt.Errorf("failed to shutdown meter provider: %w", err)
 		}

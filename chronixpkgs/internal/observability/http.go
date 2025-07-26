@@ -26,7 +26,7 @@ func HTTPMiddleware(provider *Provider, operation string) func(http.Handler) htt
 				),
 			),
 		)
-		
+
 		return handler
 	}
 }

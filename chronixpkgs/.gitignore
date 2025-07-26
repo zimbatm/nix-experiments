@@ -35,3 +35,16 @@ config.yaml
 # OS
 .DS_Store
 Thumbs.db
+
+# Nix
+result
+result-*
+.direnv/
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Logs
+logs/

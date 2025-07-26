@@ -26,10 +26,10 @@ func NewRateLimiter(requestsPerMinute, burstSize int) *RateLimiter {
 		burst:       burstSize,
 		cleanupStop: make(chan struct{}),
 	}
-	
+
 	// Start cleanup routine
 	go rl.cleanup()
-	
+
 	return rl
 }
 
@@ -38,7 +38,7 @@ func (rl *RateLimiter) Allow(ip string) bool {
 	rl.mu.RLock()
 	limiter, exists := rl.limiters[ip]
 	rl.mu.RUnlock()
-	
+
 	if !exists {
 		// Create new limiter
 		limiter = rate.NewLimiter(rate.Limit(float64(rl.rate)/60.0), rl.burst)
@@ -46,7 +46,7 @@ func (rl *RateLimiter) Allow(ip string) bool {
 		rl.limiters[ip] = limiter
 		rl.mu.Unlock()
 	}
-	
+
 	return limiter.Allow()
 }
 
@@ -54,7 +54,7 @@ func (rl *RateLimiter) Allow(ip string) bool {
 func (rl *RateLimiter) cleanup() {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -81,12 +81,12 @@ func (rl *RateLimiter) Stop() {
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := utils.GetClientIP(r)
-		
+
 		if !rl.Allow(ip) {
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }

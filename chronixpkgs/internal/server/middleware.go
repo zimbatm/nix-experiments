@@ -1,7 +1,10 @@
 package server
 
 import (
+	"bufio"
 	"compress/gzip"
+	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -11,7 +14,6 @@ import (
 	"github.com/zimbatm/nix-experiments/chronixpkgs/internal/metrics"
 )
 
-
 // gzipResponseWriter wraps http.ResponseWriter to provide gzip compression
 type gzipResponseWriter struct {
 	http.ResponseWriter
@@ -20,6 +22,14 @@ type gzipResponseWriter struct {
 
 func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.writer.Write(b)
+}
+
+// Flush implements http.Flusher interface
+func (w *gzipResponseWriter) Flush() {
+	w.writer.Flush()
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
 
 // gzipPool reuses gzip writers for better performance
@@ -82,15 +92,49 @@ func CacheMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// responseWriter captures status code
-type responseWriter struct {
+// responseRecorder wraps http.ResponseWriter to capture status code and implement common interfaces
+type responseRecorder struct {
 	http.ResponseWriter
 	statusCode int
+	written    bool
 }
 
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
+func newResponseRecorder(w http.ResponseWriter) *responseRecorder {
+	return &responseRecorder{
+		ResponseWriter: w,
+		statusCode:     http.StatusOK,
+		written:        false,
+	}
+}
+
+func (rw *responseRecorder) WriteHeader(code int) {
+	if !rw.written {
+		rw.statusCode = code
+		rw.ResponseWriter.WriteHeader(code)
+		rw.written = true
+	}
+}
+
+func (rw *responseRecorder) Write(b []byte) (int, error) {
+	if !rw.written {
+		rw.WriteHeader(http.StatusOK)
+	}
+	return rw.ResponseWriter.Write(b)
+}
+
+// Flush implements http.Flusher interface
+func (rw *responseRecorder) Flush() {
+	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+// Hijack implements http.Hijacker interface
+func (rw *responseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := rw.ResponseWriter.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+	return nil, nil, fmt.Errorf("response writer does not support hijacking")
 }
 
 // LoggingMiddleware adds request logging
@@ -98,41 +142,26 @@ func LoggingMiddleware(log *logger.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+			rw := newResponseRecorder(w)
 
 			next.ServeHTTP(rw, r)
 
 			// Log request details
 			duration := time.Since(start).Seconds()
 			log.LogRequest(r.Method, r.URL.Path, rw.statusCode, duration*1000) // Log in milliseconds
-			
+
 			// Record metrics
 			metrics.RecordHTTPRequest(r.Method, r.URL.Path, rw.statusCode, duration)
 		})
 	}
 }
 
-// CORSMiddleware adds CORS headers based on allowed origins
+// CORSMiddleware adds CORS headers - always allows all origins
 func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			origin := r.Header.Get("Origin")
-
-			// Check if origin is allowed
-			allowed := false
-			for _, allowedOrigin := range allowedOrigins {
-				if allowedOrigin == "*" || allowedOrigin == origin {
-					allowed = true
-					break
-				}
-			}
-
-			if allowed && origin != "" {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-			} else if len(allowedOrigins) > 0 && allowedOrigins[0] == "*" {
-				w.Header().Set("Access-Control-Allow-Origin", "*")
-			}
+			// Always allow all origins
+			w.Header().Set("Access-Control-Allow-Origin", "*")
 
 			if r.Method == http.MethodOptions {
 				// Handle preflight requests
@@ -147,4 +176,3 @@ func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 		})
 	}
 }
-

@@ -71,21 +71,21 @@ func Default() *Logger {
 func (l *Logger) WithContext(ctx context.Context) *Logger {
 	// Extract common context values
 	attrs := []slog.Attr{}
-	
+
 	// Add request ID if present
 	if reqID := ctx.Value("request_id"); reqID != nil {
 		attrs = append(attrs, slog.String("request_id", reqID.(string)))
 	}
-	
+
 	// Add user if present
 	if user := ctx.Value("user"); user != nil {
 		attrs = append(attrs, slog.String("user", user.(string)))
 	}
-	
+
 	if len(attrs) == 0 {
 		return l
 	}
-	
+
 	args := make([]any, 0, len(attrs)*2)
 	for _, attr := range attrs {
 		args = append(args, attr.Key, attr.Value)

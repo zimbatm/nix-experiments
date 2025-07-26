@@ -1,5 +1,7 @@
 # API Reference
 
+Chronixpkgs is a single-repository event monitoring service. Each instance monitors one specific GitHub repository configured at startup.
+
 ## Base URL
 
 ```
@@ -24,14 +26,19 @@ Currently, all endpoints are public and do not require authentication.
 
 #### GET /events
 
-Retrieve events for the monitored repository.
+Retrieve events from the monitored repository. This endpoint supports both regular JSON responses and Server-Sent Events (SSE) streaming based on the Accept header.
 
 **Query Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| since | string (RFC3339) | no | Filter events after this time |
+| since | string | no | Filter events after this time (RFC3339) or event ID |
 | type | string[] | no | Filter by event types (can be repeated) |
-| limit | integer | no | Max events to return (default: 100, max: 1000) |
+| actor | string | no | Filter by GitHub username |
+| pr | integer | no | Filter by pull request number |
+| issue | integer | no | Filter by issue number |
+| limit | integer | no | Max events to return (default: 100, max: 1000) - non-SSE only |
+| offset | integer | no | Pagination offset - non-SSE only |
+| last_event_id | string | no | Resume SSE stream from after this event ID |
 
 **Response:**
 ```json
@@ -47,26 +54,51 @@ Retrieve events for the monitored repository.
 ]
 ```
 
-**Example:**
+**Headers:**
+- `Accept: text/event-stream` - Request SSE streaming (optional)
+- `Last-Event-ID: <id>` - Resume SSE from specific event (optional)
+
+**Example (JSON):**
 ```bash
-# Get recent push and PR events
-curl "https://events.nixos.org/events?type=PushEvent&type=PullRequestEvent&limit=50"
+# Get recent events
+curl "https://events.nixos.org/events"
+
+# Get events since a specific time
+curl "https://events.nixos.org/events?since=2024-01-01T00:00:00Z"
+
+# Get events since a specific event ID
+curl "https://events.nixos.org/events?since=12345678"
+
+# Filter by event type
+curl "https://events.nixos.org/events?type=PullRequestEvent&type=IssuesEvent"
+
+# Filter by actor
+curl "https://events.nixos.org/events?actor=alice"
+
+# Filter by PR number
+curl "https://events.nixos.org/events?pr=12345"
+
+# Filter by issue number
+curl "https://events.nixos.org/events?issue=67890"
+
+# Combined filters with pagination
+curl "https://events.nixos.org/events?type=PullRequestEvent&actor=alice&limit=50&offset=100"
 ```
 
-#### GET /events/stream
+**Example (SSE):**
+```bash
+# Stream all events
+curl -H "Accept: text/event-stream" "https://events.nixos.org/events"
 
-Server-sent events stream for real-time updates from the monitored repository.
+# Stream filtered events
+curl -H "Accept: text/event-stream" "https://events.nixos.org/events?type=PushEvent&actor=bob"
 
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| last_event_id | string | no | Resume from after this event ID |
+# Resume streaming from last event
+curl -H "Accept: text/event-stream" -H "Last-Event-ID: 12345678" "https://events.nixos.org/events"
+```
 
-**Headers:**
-- `Accept: text/event-stream` (required)
-- `Last-Event-ID: <id>` (optional, for resumption)
-
-**Response Format:**
+**SSE Response Format:**
+When using `Accept: text/event-stream`, the response format is:
 ```
 id: 12345678
 event: event
@@ -77,13 +109,24 @@ event: event
 data: {"id":"12345679","type":"IssuesEvent",...}
 ```
 
-**Example:**
+**JavaScript SSE Example:**
 ```javascript
-const eventSource = new EventSource('https://events.nixos.org/events/stream');
+// Basic streaming
+const eventSource = new EventSource('https://events.nixos.org/events');
 
 eventSource.addEventListener('event', (e) => {
   const event = JSON.parse(e.data);
   console.log('New event:', event);
+});
+
+// Filtered streaming
+const prStream = new EventSource(
+  'https://events.nixos.org/events?type=PullRequestEvent&pr=12345'
+);
+
+prStream.addEventListener('event', (e) => {
+  const event = JSON.parse(e.data);
+  console.log('PR update:', event.payload.action);
 });
 
 // Browser automatically handles reconnection with last event ID
@@ -93,7 +136,10 @@ eventSource.addEventListener('event', (e) => {
 
 #### GET /event-types
 
-List all event types seen in the monitored repository.
+List all available event types for the monitored repository.
+
+**Query Parameters:**
+None
 
 **Response:**
 ```json
@@ -113,47 +159,19 @@ List all event types seen in the monitored repository.
 ]
 ```
 
-### GraphQL
-
-#### POST /graphql
-
-GraphQL endpoint for flexible querying.
-
-**Request Body:**
-```json
-{
-  "query": "...",
-  "variables": {}
-}
+**Example:**
+```bash
+curl "https://events.nixos.org/event-types"
 ```
-
-**Example Query:**
-```graphql
-query RecentPushEvents {
-  events(
-    types: ["PushEvent"]
-    limit: 10
-  ) {
-    events {
-      id
-      actor
-      createdAt
-      payload
-    }
-    totalCount
-    hasMore
-  }
-}
-```
-
-**GraphiQL Interface:**
-Available at `https://events.nixos.org/graphql` in web browsers.
 
 ### Health
 
 #### GET /health
 
 Health check endpoint.
+
+**Query Parameters:**
+None
 
 **Response:**
 ```json
@@ -204,9 +222,9 @@ Event payloads follow GitHub's webhook payload format. See [GitHub's webhook doc
 
 ### JavaScript/TypeScript
 ```javascript
-import { NixOSEvents } from '@nixos/events-client';
+import { ChronixpkgsClient } from '@chronixpkgs/client';
 
-const client = new ChronixpkgsEvents();
+const client = new ChronixpkgsClient('https://events.nixos.org');
 const events = await client.getEvents({
   types: ['PushEvent'],
   limit: 50
@@ -215,9 +233,9 @@ const events = await client.getEvents({
 
 ### Python
 ```python
-from chronixpkgs_events import EventsClient
+from chronixpkgs_client import ChronixpkgsClient
 
-client = EventsClient()
+client = ChronixpkgsClient('https://events.nixos.org')
 events = client.get_events(
     types=['PushEvent'],
     limit=50
@@ -226,10 +244,10 @@ events = client.get_events(
 
 ### Go
 ```go
-import "chronixpkgs/events-client-go"
+import "github.com/zimbatm/chronixpkgs/client-go"
 
-client := events.NewClient()
-events, err := client.GetEvents(events.QueryOptions{
+client := chronixpkgs.NewClient("https://events.nixos.org")
+events, err := client.GetEvents(chronixpkgs.QueryOptions{
     Types: []string{"PushEvent"},
     Limit: 50,
 })
@@ -240,14 +258,40 @@ events, err := client.GetEvents(events.QueryOptions{
 ### Watch for New Pull Requests
 ```javascript
 const eventSource = new EventSource(
-  'https://events.nixos.org/events/stream'
+  'https://events.nixos.org/events?type=PullRequestEvent'
 );
 
 eventSource.addEventListener('event', (e) => {
   const event = JSON.parse(e.data);
-  if (event.type === 'PullRequestEvent' && event.payload.action === 'opened') {
+  if (event.payload.action === 'opened') {
     console.log(`New PR: ${event.payload.pull_request.title}`);
   }
+});
+```
+
+### Monitor Specific PR Activity
+```javascript
+// Watch all activity on PR #12345
+const prStream = new EventSource(
+  'https://events.nixos.org/events?pr=12345'
+);
+
+prStream.addEventListener('event', (e) => {
+  const event = JSON.parse(e.data);
+  console.log(`PR #12345 activity: ${event.type} - ${event.payload.action}`);
+});
+```
+
+### Track User Activity
+```javascript
+// Monitor all events from a specific user
+const userStream = new EventSource(
+  'https://events.nixos.org/events?actor=alice'
+);
+
+userStream.addEventListener('event', (e) => {
+  const event = JSON.parse(e.data);
+  console.log(`Alice's activity: ${event.type}`);
 });
 ```
 
@@ -256,29 +300,26 @@ eventSource.addEventListener('event', (e) => {
 curl "https://events.nixos.org/events?type=PushEvent&since=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)"
 ```
 
-### GraphQL: Find Most Active Contributors
-```graphql
-query ActiveContributors {
-  events(
-    since: "2024-01-01T00:00:00Z"
-    limit: 1000
-  ) {
-    events {
-      actor
-      type
-    }
-  }
-}
+### Find Most Active Contributors
+```bash
+# Get events and process with jq to find active contributors
+curl "https://events.nixos.org/events?since=2024-01-01T00:00:00Z&limit=1000" | \
+  jq 'group_by(.actor) | map({actor: .[0].actor, count: length}) | sort_by(.count) | reverse'
 ```
 
-## Webhooks
+## Real-time Updates
 
-To receive webhooks when new events arrive:
+For real-time updates, use the `/events` endpoint with `Accept: text/event-stream` header. This provides a persistent connection that automatically receives new events as they're fetched from GitHub.
 
-1. Contact the service administrator
-2. Provide your webhook endpoint URL
-3. Specify which event types you want
-4. Implement webhook signature validation
+The system uses a polling-based architecture for reliability - no webhooks are required or supported.
+
+## Single Repository Architecture
+
+Each chronixpkgs instance monitors a single GitHub repository configured at startup. This design ensures:
+- Optimized performance for high-traffic repositories
+- Simplified caching and data management
+- Predictable resource usage
+- Easy horizontal scaling for multiple repositories
 
 ## Terms of Use
 

@@ -54,7 +54,7 @@ func NewGitHubFetcher(token string, store storage.Store) (*GitHubFetcher, error)
 	return &GitHubFetcher{
 		client:       client,
 		store:        store,
-		repository:   "", // must be set via SetRepository
+		repository:   "",              // must be set via SetRepository
 		pollInterval: 5 * time.Minute, // default
 	}, nil
 }
@@ -67,7 +67,16 @@ func (f *GitHubFetcher) SetPollInterval(interval time.Duration) {
 	f.pollInterval = interval
 }
 
+// FetchEvents fetches all events from GitHub until it catches up with the local database
+// This is used for both initial backfill and regular polling
 func (f *GitHubFetcher) FetchEvents(ctx context.Context, repo string) error {
+	log.Printf("FetchEvents called for repo: '%s'", repo)
+
+	// Check if repo is empty
+	if repo == "" {
+		return fmt.Errorf("repository is empty")
+	}
+
 	// Check context before starting
 	select {
 	case <-ctx.Done():
@@ -87,112 +96,164 @@ func (f *GitHubFetcher) FetchEvents(ctx context.Context, repo string) error {
 	}
 	owner, repoName := parts[0], parts[1]
 
-	// Get last fetch state
+	// Get the latest event in our database
 	state, err := f.store.GetFetchState(ctx, repo)
 	if err != nil {
 		return fmt.Errorf("failed to get fetch state: %w", err)
 	}
 
-	// Fetch events from GitHub with timeout
-	path := fmt.Sprintf("repos/%s/%s/events", owner, repoName)
-
-	var githubEvents []GitHubEvent
-
-	// Create a channel to receive the result
-	type result struct {
-		events []GitHubEvent
-		err    error
-	}
-	resultCh := make(chan result, 1)
-
-	// Run the API call in a goroutine
-	go func() {
-		var events []GitHubEvent
-		err := f.client.Get(path, &events)
-		resultCh <- result{events: events, err: err}
-	}()
-
-	// Wait for result or context cancellation
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("context cancelled during fetch: %w", ctx.Err())
-	case res := <-resultCh:
-		if res.err != nil {
-			return fmt.Errorf("failed to fetch events: %w", res.err)
-		}
-		githubEvents = res.events
+	var targetEventID string
+	if state != nil && state.LastEventID != "" {
+		targetEventID = state.LastEventID
+		log.Printf("Found existing events, will fetch until event ID: %s", targetEventID)
+	} else {
+		// If database is empty, we'll fetch all available pages
+		log.Printf("Database is empty, will fetch all available events")
 	}
 
-	// Convert to storage events
-	var events []storage.Event
-	var latestEventID string
+	page := 1
+	allEvents := []storage.Event{}
+	foundTarget := false
+	seenIDs := make(map[string]bool) // Track seen IDs to handle duplicates
 
-	for _, ghEvent := range githubEvents {
-		// Check context periodically
+	for {
+		// Check context
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("context cancelled during processing: %w", ctx.Err())
+			return fmt.Errorf("context cancelled during fetch: %w", ctx.Err())
 		default:
 		}
 
-		// Skip if we've seen this event before
-		if state != nil && ghEvent.ID == state.LastEventID {
+		// Fetch a page of events
+		path := fmt.Sprintf("repos/%s/%s/events?page=%d&per_page=100", owner, repoName, page)
+		log.Printf("Fetching page %d of events", page)
+
+		var githubEvents []GitHubEvent
+		err := f.client.Get(path, &githubEvents)
+		if err != nil {
+			return fmt.Errorf("failed to fetch events page %d: %w", page, err)
+		}
+
+		// If we get an empty page, we've reached the end
+		if len(githubEvents) == 0 {
+			log.Printf("Reached end of available events at page %d", page)
 			break
 		}
 
-		// Skip private events
-		if !ghEvent.Public {
-			continue
+		// Process events from this page
+		pageEvents := []storage.Event{}
+		for _, ghEvent := range githubEvents {
+			// Skip if we've already seen this ID (handles duplicates across pages)
+			if seenIDs[ghEvent.ID] {
+				continue
+			}
+			seenIDs[ghEvent.ID] = true
+
+			// If we found our target event, stop processing
+			if targetEventID != "" && ghEvent.ID == targetEventID {
+				foundTarget = true
+				break
+			}
+
+			// Skip private events
+			if !ghEvent.Public {
+				continue
+			}
+
+			// Parse created_at time
+			createdAt, err := time.Parse(time.RFC3339, ghEvent.CreatedAt)
+			if err != nil {
+				log.Printf("Failed to parse time for event %s: %v", ghEvent.ID, err)
+				continue
+			}
+
+			pageEvents = append(pageEvents, storage.Event{
+				ID:        ghEvent.ID,
+				Repo:      repo,
+				Type:      ghEvent.Type,
+				Actor:     ghEvent.Actor.Login,
+				CreatedAt: createdAt,
+				Payload:   ghEvent.Payload,
+			})
 		}
 
-		// Parse created_at time
-		createdAt, err := time.Parse(time.RFC3339, ghEvent.CreatedAt)
-		if err != nil {
-			return fmt.Errorf("failed to parse time for event %s: %w", ghEvent.ID, err)
+		// Add page events to all events (in reverse order for chronological ordering)
+		for i := len(pageEvents) - 1; i >= 0; i-- {
+			allEvents = append(allEvents, pageEvents[i])
 		}
 
-		events = append(events, storage.Event{
-			ID:        ghEvent.ID,
-			Repo:      repo,
-			Type:      ghEvent.Type,
-			Actor:     ghEvent.Actor.Login,
-			CreatedAt: createdAt,
-			Payload:   ghEvent.Payload,
-		})
-
-		if latestEventID == "" {
-			latestEventID = ghEvent.ID
+		if foundTarget {
+			log.Printf("Found target event on page %d, stopping fetch", page)
+			break
 		}
+
+		// GitHub limits to 10 pages (300 events total) for unauthenticated requests
+		// With authentication, we can go up to 10 pages of 100 events = 1000 events
+		if page >= 10 {
+			log.Printf("Reached maximum page limit (10 pages)")
+			break
+		}
+
+		// If this is the first page and we have a target, we're up to date
+		if page == 1 && targetEventID != "" && len(pageEvents) == 0 {
+			log.Printf("No new events found")
+			break
+		}
+
+		page++
+
+		// Small delay to be nice to GitHub API
+		time.Sleep(100 * time.Millisecond)
 	}
 
-	// Save events (newest first, so reverse the order)
-	if len(events) > 0 {
-		// Reverse the slice
-		for i, j := 0, len(events)-1; i < j; i, j = i+1, j-1 {
-			events[i], events[j] = events[j], events[i]
+	// Save all events in batches
+	if len(allEvents) > 0 {
+		log.Printf("Saving %d events", len(allEvents))
+
+		// Save in batches of 100 to avoid overwhelming the database
+		batchSize := 100
+		for i := 0; i < len(allEvents); i += batchSize {
+			end := i + batchSize
+			if end > len(allEvents) {
+				end = len(allEvents)
+			}
+
+			batch := allEvents[i:end]
+			if err := f.store.SaveEvents(ctx, batch); err != nil {
+				return fmt.Errorf("failed to save events batch: %w", err)
+			}
 		}
 
-		if err := f.store.SaveEvents(ctx, events); err != nil {
-			return fmt.Errorf("failed to save events: %w", err)
+		// Update fetch state with the newest event
+		if len(allEvents) > 0 {
+			newestEvent := allEvents[len(allEvents)-1]
+			newState := &storage.FetchState{
+				Repo:        repo,
+				LastEventID: newestEvent.ID,
+				LastFetchAt: time.Now(),
+			}
+			if err := f.store.UpdateFetchState(ctx, newState); err != nil {
+				return fmt.Errorf("failed to update fetch state: %w", err)
+			}
 		}
 
-		// Update fetch state
-		newState := &storage.FetchState{
-			Repo:        repo,
-			LastEventID: latestEventID,
-			LastFetchAt: time.Now(),
-		}
-		if err := f.store.UpdateFetchState(ctx, newState); err != nil {
-			return fmt.Errorf("failed to update fetch state: %w", err)
-		}
-
-		log.Printf("Fetched %d new events for %s", len(events), repo)
+		log.Printf("Fetch completed successfully, saved %d events", len(allEvents))
+	} else {
+		log.Printf("No new events to save")
 	}
 
 	return nil
 }
 
 func (f *GitHubFetcher) StartPollingTimer(ctx context.Context) {
+	log.Printf("Starting polling timer for repository: %s with interval: %v", f.repository, f.pollInterval)
+
+	// Fetch immediately on start (this handles both backfill and regular fetch)
+	log.Printf("Performing initial fetch for %s...", f.repository)
+	if err := f.FetchEvents(ctx, f.repository); err != nil {
+		log.Printf("Failed to fetch events on start: %v", err)
+	}
+
 	f.timerMu.Lock()
 	f.resetTimer()
 	f.timerMu.Unlock()
