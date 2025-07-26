@@ -71,7 +71,12 @@ func TestSaveAndGetEvents(t *testing.T) {
 	}
 
 	// Retrieve events
-	retrieved, err := store.GetEvents(ctx, "github.com/NixOS/nixpkgs", now.Add(-3*time.Hour), 10)
+	filter := EventFilter{
+		Repo:  "github.com/NixOS/nixpkgs",
+		Since: now.Add(-3 * time.Hour),
+		Limit: 10,
+	}
+	retrieved, err := store.GetEventsFiltered(ctx, filter)
 	if err != nil {
 		t.Fatalf("Failed to get events: %v", err)
 	}
@@ -123,7 +128,12 @@ func TestEventDeduplication(t *testing.T) {
 	}
 
 	// Retrieve events - use a time before the event was created
-	retrieved, err := store.GetEvents(ctx, event.Repo, event.CreatedAt.Add(-1*time.Hour), 10)
+	filter := EventFilter{
+		Repo:  event.Repo,
+		Since: event.CreatedAt.Add(-1 * time.Hour),
+		Limit: 10,
+	}
+	retrieved, err := store.GetEventsFiltered(ctx, filter)
 	if err != nil {
 		t.Fatalf("Failed to get events: %v", err)
 	}
@@ -255,8 +265,8 @@ func TestGetEventsFiltered(t *testing.T) {
 	}
 }
 
-// TestGetEventsAfterId tests pagination using event ID
-func TestGetEventsAfterId(t *testing.T) {
+// TestGetEventsFilteredWithSinceID tests pagination using event ID
+func TestGetEventsFilteredWithSinceID(t *testing.T) {
 	tempDir := t.TempDir()
 	store, err := NewSQLiteStore(tempDir)
 	if err != nil {
@@ -286,7 +296,12 @@ func TestGetEventsAfterId(t *testing.T) {
 	}
 
 	// Get events after event2
-	afterEvents, err := store.GetEventsAfterId(ctx, "github.com/NixOS/nixpkgs", "event2", 10)
+	filter := EventFilter{
+		Repo:    "github.com/NixOS/nixpkgs",
+		SinceID: "event2",
+		Limit:   10,
+	}
+	afterEvents, err := store.GetEventsFiltered(ctx, filter)
 	if err != nil {
 		t.Fatalf("Failed to get events after ID: %v", err)
 	}
@@ -373,7 +388,12 @@ func TestContextCancellation(t *testing.T) {
 	}
 
 	// Try to get events with cancelled context
-	_, err = store.GetEvents(ctx, "test", time.Now().Add(-1*time.Hour), 10)
+	filter := EventFilter{
+		Repo:  "test",
+		Since: time.Now().Add(-1 * time.Hour),
+		Limit: 10,
+	}
+	_, err = store.GetEventsFiltered(ctx, filter)
 	if err == nil {
 		t.Error("Expected error when getting with cancelled context")
 	}
@@ -445,7 +465,12 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 
 	// Verify all events were saved
-	events, err := store.GetEvents(ctx, "github.com/NixOS/nixpkgs", time.Now().Add(-1*time.Hour), 100)
+	filter := EventFilter{
+		Repo:  "github.com/NixOS/nixpkgs",
+		Since: time.Now().Add(-1 * time.Hour),
+		Limit: 100,
+	}
+	events, err := store.GetEventsFiltered(ctx, filter)
 	if err != nil {
 		t.Fatalf("Failed to get events: %v", err)
 	}

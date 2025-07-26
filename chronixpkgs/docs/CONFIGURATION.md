@@ -2,15 +2,134 @@
 
 This document details all configuration options for chronixpkgs components.
 
+## Configuration Methods
+
+Chronixpkgs can be configured using:
+
+1. **Configuration file** (TOML format) - Recommended for production
+2. **Environment file** (.env) - Good for local development and secrets
+3. **Environment variables** - Good for containers and CI/CD
+4. **Command-line flags** - Override specific settings
+
+Settings are applied in this order (later overrides earlier):
+1. Default values
+2. .env file (if present)
+3. Configuration file (TOML)
+4. Environment variables  
+5. Command-line flags
+
+## Environment File (.env)
+
+### Generate Example .env
+
+```bash
+chronixpkgs config init-env
+```
+
+This creates a `.env.example` file. Copy it to `.env` and fill in your values:
+
+```bash
+cp .env.example .env
+vim .env
+```
+
+### Example .env File
+
+```bash
+# Repository to monitor
+CHRONIXPKGS_REPO=NixOS/nixpkgs
+
+# Data directory
+CHRONIXPKGS_DATA_DIR=./data
+
+# GitHub API token (required for fetcher)
+GITHUB_TOKEN=ghp_your_token_here
+
+# S3 Configuration (optional)
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+S3_ENDPOINT=https://s3.amazonaws.com
+S3_BUCKET=chronixpkgs-events
+```
+
+### .env File Locations
+
+The .env file is searched in these locations (in order):
+- `./.env`
+- `./.env.local`
+- `~/.config/chronixpkgs/.env`
+
+## Configuration File (TOML)
+
+### Generate Example Config
+
+```bash
+chronixpkgs config init
+```
+
+This creates a `chronixpkgs.toml` file with all available options.
+
+### Config File Locations
+
+The configuration file is searched in these locations (in order):
+- `./chronixpkgs.toml`
+- `./config.toml`
+- `~/.config/chronixpkgs/config.toml`
+- `/etc/chronixpkgs/config.toml`
+
+Or specify a custom path:
+```bash
+chronixpkgs --config /path/to/config.toml [command]
+```
+
+### Example Configuration
+
+```toml
+# Repository to monitor (required)
+repository = "NixOS/nixpkgs"
+
+[storage]
+data_dir = "./data"
+retention_days = 0  # 0 = keep forever
+vacuum_interval = "24h"
+
+[server]
+listen = ":8080"
+enable_rate_limit = true
+rate_limit_per_minute = 60
+rate_limit_burst = 10
+default_limit = 100
+max_limit = 1000
+sse_interval = "10s"
+
+[fetcher]
+# github_token = "ghp_..."  # Better to use GITHUB_TOKEN env var
+poll_interval = "1m"
+once = false
+
+[s3]
+enabled = false
+endpoint = "https://s3.amazonaws.com"
+bucket = "chronixpkgs-events"
+# access_key = ""  # Use AWS_ACCESS_KEY_ID env var
+# secret_key = ""  # Use AWS_SECRET_ACCESS_KEY env var
+export_interval = "1h"
+
+[observability]
+# otel_endpoint = "localhost:4317"
+service_name = "chronixpkgs"
+```
+
 ## Environment Variables
 
 | Variable | Description | Required | Used By |
 |----------|-------------|----------|---------|
 | `GITHUB_TOKEN` | GitHub personal access token for API requests | Yes | fetcher |
-| `S3_ENDPOINT` | S3-compatible endpoint URL | No | fetcher, archive |
-| `S3_BUCKET` | S3 bucket name for archives | No | fetcher, archive |
-| `S3_ACCESS_KEY_ID` | S3 access key | No | fetcher, archive |
-| `S3_SECRET_ACCESS_KEY` | S3 secret key | No | fetcher, archive |
+| `CHRONIXPKGS_REPO` | Repository to monitor | No | all |
+| `CHRONIXPKGS_DATA_DIR` | Data directory path | No | all |
+| `CHRONIXPKGS_LISTEN` | Server listen address | No | server |
+| `AWS_ACCESS_KEY_ID` | S3 access key (standard AWS env var) | No | fetcher, archive |
+| `AWS_SECRET_ACCESS_KEY` | S3 secret key (standard AWS env var) | No | fetcher, archive |
 
 ## Command Line Arguments
 

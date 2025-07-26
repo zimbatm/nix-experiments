@@ -41,7 +41,6 @@ var defaultDBConfig = dbConfig{
 // Processing configuration
 const (
 	eventBatchSize              = 100
-	partitionOptimizationMonths = 3
 )
 
 type SQLiteStore struct {
@@ -403,97 +402,7 @@ func (s *SQLiteStore) appendToJSONL(ctx context.Context, filename string, events
 	return nil
 }
 
-func (s *SQLiteStore) GetEvents(ctx context.Context, repo string, since time.Time, limit int) ([]Event, error) {
-	// Use partition pruning if querying recent data
-	now := time.Now()
-	monthsSince := int(now.Sub(since).Hours() / 24 / 30) // Approximate
 
-	var query string
-	var args []interface{}
-
-	// If querying less than 3 months, query specific partitions
-	if monthsSince <= partitionOptimizationMonths {
-		partitions, err := s.getPartitionsForTimeRange(ctx, since, now)
-		if err != nil {
-			return nil, err
-		}
-		if len(partitions) > 0 {
-			// Build optimized query for specific partitions
-			var unions []string
-			for _, partition := range partitions {
-				unions = append(unions, fmt.Sprintf(
-					"SELECT id, repo, event_type, actor, created_at, payload FROM %s WHERE repo = ? AND created_at > ?",
-					partition,
-				))
-			}
-			query = fmt.Sprintf("SELECT * FROM (%s) ORDER BY created_at DESC LIMIT ?",
-				strings.Join(unions, " UNION ALL "))
-
-			// Build args: repo and since for each partition, then limit
-			for range partitions {
-				args = append(args, repo, since)
-			}
-			args = append(args, limit)
-		} else {
-			// Fallback to view
-			query = `SELECT id, repo, event_type, actor, created_at, payload 
-				FROM events 
-				WHERE repo = ? AND created_at > ? 
-				ORDER BY created_at DESC 
-				LIMIT ?`
-			args = []interface{}{repo, since, limit}
-		}
-	} else {
-		// For longer time ranges, use the view
-		query = `SELECT id, repo, event_type, actor, created_at, payload 
-			FROM events 
-			WHERE repo = ? AND created_at > ? 
-			ORDER BY created_at DESC 
-			LIMIT ?`
-		args = []interface{}{repo, since, limit}
-	}
-
-	rows, err := s.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var events []Event
-	for rows.Next() {
-		var event Event
-		var payloadStr string
-		err := rows.Scan(&event.ID, &event.Repo, &event.Type,
-			&event.Actor, &event.CreatedAt, &payloadStr)
-		if err != nil {
-			return nil, err
-		}
-		event.Payload = json.RawMessage(payloadStr)
-		events = append(events, event)
-	}
-
-	return events, rows.Err()
-}
-
-// getPartitionsForTimeRange returns partition names that contain data in the given time range
-func (s *SQLiteStore) getPartitionsForTimeRange(ctx context.Context, start, end time.Time) ([]string, error) {
-	var partitions []string
-
-	// Iterate through months
-	current := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
-	endMonth := time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC)
-
-	for !current.After(endMonth) {
-		// Check for context cancellation
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		partitions = append(partitions, fmt.Sprintf("events_%d_%02d", current.Year(), current.Month()))
-		current = current.AddDate(0, 1, 0)
-	}
-
-	return partitions, nil
-}
 
 func (s *SQLiteStore) GetFetchState(ctx context.Context, repo string) (*FetchState, error) {
 	var state FetchState
@@ -648,36 +557,6 @@ func (s *SQLiteStore) GetEventCount(ctx context.Context, repo string) (int64, er
 	return count, nil
 }
 
-func (s *SQLiteStore) GetEventsAfterId(ctx context.Context, repo string, afterID string, limit int) ([]Event, error) {
-	// GitHub event IDs are strings that can be compared lexicographically
-	// Higher IDs are newer events
-	query := `SELECT id, repo, event_type, actor, created_at, payload 
-		FROM events 
-		WHERE repo = ? AND id > ? 
-		ORDER BY id DESC 
-		LIMIT ?`
-
-	rows, err := s.db.QueryContext(ctx, query, repo, afterID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var events []Event
-	for rows.Next() {
-		var event Event
-		var payloadStr string
-		err := rows.Scan(&event.ID, &event.Repo, &event.Type,
-			&event.Actor, &event.CreatedAt, &payloadStr)
-		if err != nil {
-			return nil, err
-		}
-		event.Payload = json.RawMessage(payloadStr)
-		events = append(events, event)
-	}
-
-	return events, rows.Err()
-}
 
 // ArchiveOldPartitions archives partitions older than the retention period
 func (s *SQLiteStore) ArchiveOldPartitions(ctx context.Context, retentionDays int) error {

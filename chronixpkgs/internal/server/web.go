@@ -61,7 +61,12 @@ func (s *Server) handleEventsPartial(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get recent events from the last 7 days
-	events, err := s.store.GetEvents(ctx, repo, time.Now().AddDate(0, 0, -7), limit+1)
+	filter := storage.EventFilter{
+		Repo:  repo,
+		Since: time.Now().AddDate(0, 0, -7),
+		Limit: limit + 1,
+	}
+	events, err := s.store.GetEventsFiltered(ctx, filter)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -44,6 +44,32 @@ curl "https://events.nixos.org/events?issue=67890"
 curl "https://events.nixos.org/events?type=PullRequestEvent&actor=bob&since=2024-01-15T00:00:00Z"
 ```
 
+## For Developers
+
+### CLI Usage (No Server Required)
+
+Query events directly from the database:
+
+```bash
+# Get recent events
+chronixpkgs events --repo NixOS/nixpkgs --data-dir ./data
+
+# Filter by event type
+chronixpkgs events --repo NixOS/nixpkgs --type PullRequestEvent
+
+# Filter by actor
+chronixpkgs events --repo NixOS/nixpkgs --actor alice
+
+# Filter by PR number
+chronixpkgs events --repo NixOS/nixpkgs --pr 12345
+
+# Output as JSON Lines for processing
+chronixpkgs events --repo NixOS/nixpkgs --format jsonl | jq '.actor' | sort | uniq -c
+
+# Pretty print for debugging
+chronixpkgs events --repo NixOS/nixpkgs --limit 5 --format pretty
+```
+
 ## For Operators
 
 ### Quick Deployment

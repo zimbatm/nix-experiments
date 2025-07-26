@@ -38,9 +38,7 @@ type EventFilter struct {
 
 type Store interface {
 	SaveEvents(ctx context.Context, events []Event) error
-	GetEvents(ctx context.Context, repo string, since time.Time, limit int) ([]Event, error)
 	GetEventsFiltered(ctx context.Context, filter EventFilter) ([]Event, error)
-	GetEventsAfterId(ctx context.Context, repo string, afterID string, limit int) ([]Event, error)
 	GetEventCount(ctx context.Context, repo string) (int64, error)
 	GetFetchState(ctx context.Context, repo string) (*FetchState, error)
 	UpdateFetchState(ctx context.Context, state *FetchState) error

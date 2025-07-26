@@ -391,7 +391,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	// Try to fetch a single event to verify database connectivity
-	_, err := s.store.GetEvents(ctx, s.getMonitoredRepo(), time.Now().Add(-24*time.Hour), 1)
+	filter := storage.EventFilter{
+		Repo:  s.getMonitoredRepo(),
+		Since: time.Now().Add(-24 * time.Hour),
+		Limit: 1,
+	}
+	_, err := s.store.GetEventsFiltered(ctx, filter)
 
 	status := "ok"
 	statusCode := http.StatusOK

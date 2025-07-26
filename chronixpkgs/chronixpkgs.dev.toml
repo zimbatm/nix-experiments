@@ -1,0 +1,33 @@
+# Development configuration for chronixpkgs
+
+repository = "NixOS/nixpkgs"
+
+[storage]
+data_dir = "./data"
+retention_days = 0
+vacuum_interval = "24h"
+
+[server]
+listen = ":8081"
+enable_rate_limit = true
+rate_limit_per_minute = 60
+rate_limit_burst = 10
+default_limit = 100
+max_limit = 1000
+sse_interval = "10s"
+
+[fetcher]
+poll_interval = "1m"
+once = false
+
+[s3]
+enabled = true
+endpoint = "https://186a9b0a6ef4bf5c3792c9f4b4ebfbda.r2.cloudflarestorage.com"
+bucket = "chronixpkgs"
+# Credentials should be in .env file:
+# AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+export_interval = "1h"
+
+[observability]
+otel_endpoint = "localhost:4317"
+service_name = "chronixpkgs"

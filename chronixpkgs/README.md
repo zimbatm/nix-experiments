@@ -66,6 +66,33 @@ nix run github:zimbatm/nix-experiments?dir=chronixpkgs
 cat docs/DEPLOYMENT.md
 ```
 
+### CLI Tools
+
+Query events directly without running the HTTP server:
+
+```bash
+# Option 1: Use .env file (recommended for development)
+chronixpkgs config init-env
+cp .env.example .env
+# Edit .env to set your repository and S3 bucket
+
+# Option 2: Use TOML config file (recommended for production)
+chronixpkgs config init
+# Edit chronixpkgs.toml to set your repository
+
+# Get recent events
+chronixpkgs events
+
+# Filter by event type and actor
+chronixpkgs events --type PullRequestEvent --actor alice
+
+# Show repository statistics
+chronixpkgs stats
+
+# List available event types
+chronixpkgs event-types
+```
+
 ## Documentation
 
 - [Quick Start](docs/QUICK_START.md) - Start using the API in 5 minutes
