@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/joho/godotenv"
 )
 
 // Config represents the complete chronixpkgs configuration
@@ -174,20 +173,6 @@ func LoadConfig(path string) (*Config, error) {
 
 // LoadConfigOrDefault loads config from file if it exists, otherwise returns defaults
 func LoadConfigOrDefault(path string) (*Config, error) {
-	// Load .env file if it exists
-	envFiles := []string{
-		".env",
-		".env.local",
-		filepath.Join(os.Getenv("HOME"), ".config", "chronixpkgs", ".env"),
-	}
-	
-	for _, envFile := range envFiles {
-		if _, err := os.Stat(envFile); err == nil {
-			_ = godotenv.Load(envFile) // Ignore errors, just load what we can
-			break
-		}
-	}
-	
 	if path == "" {
 		// Try default locations
 		configPaths := []string{
@@ -397,6 +382,9 @@ func WriteExampleEnv(path string) error {
 	example := `# Chronixpkgs Secrets
 # Copy this file to .env and fill in your actual secrets
 # DO NOT COMMIT .env TO VERSION CONTROL!
+
+# Config file location (optional - defaults to searching standard locations)
+# CHRONIXPKGS_CONFIG=chronixpkgs.dev.toml
 
 # GitHub API token (required for fetcher)
 # Get one from: https://github.com/settings/tokens
