@@ -1,0 +1,39 @@
+{
+  "nodes": {
+    "dep": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "path": "../dep-flake",
+        "type": "path"
+      },
+      "original": {
+        "path": "../dep-flake",
+        "type": "path"
+      },
+      "parent": []
+    },
+    "nixpkgs": {
+      "locked": {
+        "path": "../fake-nixpkgs",
+        "type": "path"
+      },
+      "original": {
+        "path": "../fake-nixpkgs",
+        "type": "path"
+      },
+      "parent": []
+    },
+    "root": {
+      "inputs": {
+        "dep": "dep",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

@@ -1,0 +1,22 @@
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "path": "../fake-nixpkgs",
+        "type": "path"
+      },
+      "original": {
+        "path": "../fake-nixpkgs",
+        "type": "path"
+      },
+      "parent": []
+    },
+    "root": {
+      "inputs": {
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
