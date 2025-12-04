@@ -1,28 +1,27 @@
-{ buildEnv
-, lib
-, devenv
-, writeText
-, pkgs
+{
+  buildEnv,
+  lib,
+  devenv,
+  writeText,
+  pkgs,
 }:
 {
   # packages to add to the profile
-  packages ? [ ]
+  packages ? [ ],
   # environment variables to load
-, profile ? ""
+  profile ? "",
   # only useful in the project
-, withDevenv ? true
+  withDevenv ? true,
   # a set of nix modules to configure the profile
-, modules ? [ ]
+  modules ? [ ],
 }@args:
 let
   profileText = writeText "extra-profile" profile;
 
-  paths =
-    lib.optional withDevenv devenv
-    ++ packages
-  ;
+  paths = lib.optional withDevenv devenv ++ packages;
 
-  baseModule = { config, lib, ... }:
+  baseModule =
+    { config, lib, ... }:
     with lib;
     let
       cfg = config.profile;

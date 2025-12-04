@@ -1,21 +1,21 @@
-{ pkgs
-, lib
-, bashInteractive
-, buildEnv
-, writeText
+{
+  pkgs,
+  lib,
+  bashInteractive,
+  buildEnv,
+  writeText,
 }:
 
 # mkProfile
-{ name
-, paths ? { }
-, env ? { }
-, profile ? ""
-, interactive ? ""
+{
+  name,
+  paths ? { },
+  env ? { },
+  profile ? "",
+  interactive ? "",
 }:
 let
-  envPairs = lib.mapAttrsToList
-    (k: v: "export ${k}=${lib.escapeShellArg (toString v)}")
-    env;
+  envPairs = lib.mapAttrsToList (k: v: "export ${k}=${lib.escapeShellArg (toString v)}") env;
 
   profileDrv = writeText "bashrc" ''
     # Set all the environment variables

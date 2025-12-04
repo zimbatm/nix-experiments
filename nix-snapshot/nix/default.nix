@@ -8,4 +8,6 @@ let
     overlays = [ overlay ];
   };
 in
-{ inherit (pkgs) hello; }
+{
+  inherit (pkgs) hello;
+}

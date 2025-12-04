@@ -1,8 +1,8 @@
-{ sources ? (import ./sources.nix)
-    // {
+{
+  sources ? (import ./sources.nix) // {
     devenv = ../.;
-  }
-, system ? builtins.currentSystem
+  },
+  system ? builtins.currentSystem,
 }:
 import sources.nixpkgs {
   inherit system;

@@ -7,21 +7,17 @@ let
   overrides = {
     import = scopedImport overrides;
     scopedImport = x: builtins.scopedImport (overrides // x);
-    builtins = builtins
-      // {
+    builtins = builtins // {
       readFile = file: builtins.trace "evaluating file '${toString file}'" (builtins.readFile file);
       # TODO: add readDir
-    }
-    ;
+    };
   };
 
   imported =
     let
       raw = overrides.scopedImport overrides src;
     in
-    if (builtins.isFunction raw)
-    then raw { }
-    else raw;
+    if (builtins.isFunction raw) then raw { } else raw;
 in
 #imported
 overrides.scopedImport overrides src

@@ -17,7 +17,7 @@
 # * derivations: a list of derivations
 {
   # A list of derivations to install
-  derivations
+  derivations,
 }:
 let
   stdlib = import ../nix-stdlib;
@@ -27,15 +27,22 @@ in
 with builtins;
 let
   # Generate a nix-env compatible manifest.nix file
-  genManifest = drv:
+  genManifest =
+    drv:
     let
       outputs =
         drv.meta.outputsToInstall or
-          # install the first output
-          [ (head drv.outputs) ];
+        # install the first output
+        [ (head drv.outputs) ];
 
       base = {
-        inherit (drv) meta name outPath system type;
+        inherit (drv)
+          meta
+          name
+          outPath
+          system
+          type
+          ;
         out = { inherit (drv) outPath; };
         inherit outputs;
       };
@@ -48,10 +55,7 @@ let
     in
     base // outs;
 
-  writeManifest = derivations:
-    writeText "env-manifest.nix" (
-      toNix (map genManifest derivations)
-    );
+  writeManifest = derivations: writeText "env-manifest.nix" (toNix (map genManifest derivations));
 in
 derivation {
   name = "user-environment";
@@ -60,15 +64,15 @@ derivation {
   manifest = writeManifest derivations;
 
   # !!! grmbl, need structured data for passing this in a clean way.
-  derivations =
-    map
-      (d:
-        [
-          (d.meta.active or "true")
-          (d.meta.priority or 5)
-          (builtins.length d.outputs)
-        ] ++ map (output: builtins.getAttr output d) d.outputs)
-      derivations;
+  derivations = map (
+    d:
+    [
+      (d.meta.active or "true")
+      (d.meta.priority or 5)
+      (builtins.length d.outputs)
+    ]
+    ++ map (output: builtins.getAttr output d) d.outputs
+  ) derivations;
 
   # Building user environments remotely just causes huge amounts of
   # network traffic, so don't do that.

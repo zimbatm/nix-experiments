@@ -1,9 +1,10 @@
-{ url
-, hash ? "" # an SRI hash
-, executable ? false
-, name ? baseNameOf (toString url)
-, meta ? { }
-, passthru ? { }
+{
+  url,
+  hash ? "", # an SRI hash
+  executable ? false,
+  name ? baseNameOf (toString url),
+  meta ? { },
+  passthru ? { },
 }:
 let
   drv = derivation {

@@ -1,7 +1,14 @@
 let
   fetchers = {
     # Light version
-    fetchFromGitHub = { owner, repo, rev, sha256, meta }:
+    fetchFromGitHub =
+      {
+        owner,
+        repo,
+        rev,
+        sha256,
+        meta,
+      }:
       let
         homepage = "https://github.com/${owner}/${repo}";
         url = "${homepage}/archive/${rev}.tar.gz";

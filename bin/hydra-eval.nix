@@ -17,16 +17,24 @@ let
 
   # Add the ‘recurseForDerivations’ attribute to ensure that
   # nix-instantiate recurses into nested attribute sets.
-  recurse = path: attrs:
+  recurse =
+    path: attrs:
     if (tryEval attrs).success then
-      if isDerivation attrs
-      then
-        if (tryEval attrs.drvPath).success
-        then { inherit (attrs) name drvPath; }
-        else { failed = true; }
-      else { recurseForDerivations = true; } // mapAttrs (n: v:
-        let path' = path ++ [ n ]; in trace path' (recurse path' v)) attrs
-    else { };
+      if isDerivation attrs then
+        if (tryEval attrs.drvPath).success then { inherit (attrs) name drvPath; } else { failed = true; }
+      else
+        {
+          recurseForDerivations = true;
+        }
+        // mapAttrs (
+          n: v:
+          let
+            path' = path ++ [ n ];
+          in
+          trace path' (recurse path' v)
+        ) attrs
+    else
+      { };
 
 in
 recurse [ ] rel

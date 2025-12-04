@@ -7,7 +7,11 @@ let
   coreutilsBin = builtins.storePath nixConfig.coreutils;
 
   # NOTE: this derivation is impure and depends on the user's nix version
-  nixInstantiate = { name ? "nix-instantiate", path }:
+  nixInstantiate =
+    {
+      name ? "nix-instantiate",
+      path,
+    }:
     derivation {
       inherit name;
       system = builtins.currentSystem;
@@ -15,7 +19,10 @@ let
       PATH = "${coreutilsBin}:${nixBin}";
 
       builder = "/bin/sh";
-      args = [ "-c" ". $buildScriptPath" ];
+      args = [
+        "-c"
+        ". $buildScriptPath"
+      ];
       passAsFile = [ "buildScript" ];
       buildScript = ''
         set -e

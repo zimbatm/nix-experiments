@@ -1,5 +1,7 @@
 # This file contains all the developer environment tools
-{ system ? builtins.currentSystem }:
+{
+  system ? builtins.currentSystem,
+}:
 let
   pkgs = import ./nix { inherit system; };
 

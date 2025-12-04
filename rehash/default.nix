@@ -4,7 +4,8 @@ let
   # output is the same.
   #
   # Nix forgets the connection between the input drv and the output drv.
-  rehash = drv:
+  rehash =
+    drv:
     let
       name = builtins.unsafeDiscardStringContext drv.name;
       outPath = builtins.unsafeDiscardStringContext drv.outPath;

@@ -1,4 +1,5 @@
-{ system ? builtins.currentSystem
+{
+  system ? builtins.currentSystem,
 }:
 let
   pkgs = import ./nix { inherit system; };

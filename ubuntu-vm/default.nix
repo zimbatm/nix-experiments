@@ -33,25 +33,31 @@ rec {
         };
         ssh_pwauth = true;
         mounts = [
-          [ "hostshare" "/mnt" "9p" "defaults,trans=virtio,version=9p2000.L" ]
+          [
+            "hostshare"
+            "/mnt"
+            "9p"
+            "defaults,trans=virtio,version=9p2000.L"
+          ]
         ];
       };
     in
-    pkgs.writeText
-      "cloud-init.yaml"
-      "#cloud-config\n${builtins.toJSON data}";
+    pkgs.writeText "cloud-init.yaml" "#cloud-config\n${builtins.toJSON data}";
 
   # Generate the initial user data disk. This containst extra configuration
   # for the VM.
-  userdata = runCommand
-    "userdata.qcow2"
-    {
-      buildInputs = [ pkgs.cloud-utils pkgs.qemu ];
-    }
-    ''
-      cloud-localds userdata.raw ${cloudInit}
-      qemu-img convert -p -f raw userdata.raw -O qcow2 "$out"
-    '';
+  userdata =
+    runCommand "userdata.qcow2"
+      {
+        buildInputs = [
+          pkgs.cloud-utils
+          pkgs.qemu
+        ];
+      }
+      ''
+        cloud-localds userdata.raw ${cloudInit}
+        qemu-img convert -p -f raw userdata.raw -O qcow2 "$out"
+      '';
 
   runVM = pkgs.writeShellScript "runVM" ''
     #
@@ -87,98 +93,103 @@ rec {
     ssh -i "$sshKey" ubuntu@127.0.0.1 -p 10022 "$@"
   '';
 
-  noSnapshot = runCommand "no-snapshot" { buildInputs = [ pkgs.qemu ]; }
-    ''
-      # Make some room on the root image
-      cp --reflink=auto "${image}" disk.qcow2
-      chmod +w disk.qcow2
-      qemu-img resize disk.qcow2 +${config.disk}
+  noSnapshot = runCommand "no-snapshot" { buildInputs = [ pkgs.qemu ]; } ''
+    # Make some room on the root image
+    cp --reflink=auto "${image}" disk.qcow2
+    chmod +w disk.qcow2
+    qemu-img resize disk.qcow2 +${config.disk}
 
-      mkdir $out
-      mv disk.qcow2 $out/disk.qcow2
-      ln -s ${userdata} $out/userdata.qcow2
+    mkdir $out
+    mv disk.qcow2 $out/disk.qcow2
+    ln -s ${userdata} $out/userdata.qcow2
 
-      cat <<WRAP > $out/runVM
-      #!${pkgs.stdenv.shell}
-      set -euo pipefail
+    cat <<WRAP > $out/runVM
+    #!${pkgs.stdenv.shell}
+    set -euo pipefail
 
-      if [[ ! -f disk.qcow2 ]]; then
-        # Setup the VM configuration on boot
-        cp --reflink=auto "$out/disk.qcow2" disk.qcow2
-        cp --reflink=auto "$out/userdata.qcow2" userdata.qcow2
-        chmod +w disk.qcow2 userdata.qcow2
-      fi
+    if [[ ! -f disk.qcow2 ]]; then
+      # Setup the VM configuration on boot
+      cp --reflink=auto "$out/disk.qcow2" disk.qcow2
+      cp --reflink=auto "$out/userdata.qcow2" userdata.qcow2
+      chmod +w disk.qcow2 userdata.qcow2
+    fi
 
-      # And finally boot qemu with a bunch of arguments
-      args=(
-        # Share the nix folder with the guest
-        -virtfs "local,security_model=passthrough,id=fsdev0,path=\$PWD,readonly,mount_tag=hostshare"
-      )
+    # And finally boot qemu with a bunch of arguments
+    args=(
+      # Share the nix folder with the guest
+      -virtfs "local,security_model=passthrough,id=fsdev0,path=\$PWD,readonly,mount_tag=hostshare"
+    )
 
-      echo "Starting VM."
-      echo "To login: ubuntu / ubuntu"
-      echo "To quit: type 'Ctrl+a c' then 'quit'"
-      echo "Press enter in a few seconds"
-      exec ${runVM} disk.qcow2 userdata.qcow2 "\''${args[@]}" "\$@"
-      WRAP
-      chmod +x $out/runVM
-    '';
+    echo "Starting VM."
+    echo "To login: ubuntu / ubuntu"
+    echo "To quit: type 'Ctrl+a c' then 'quit'"
+    echo "Press enter in a few seconds"
+    exec ${runVM} disk.qcow2 userdata.qcow2 "\''${args[@]}" "\$@"
+    WRAP
+    chmod +x $out/runVM
+  '';
 
   # Prepare the VM snapshot for faster resume.
-  prepare = runCommand "prepare"
-    { buildInputs = [ pkgs.qemu (pkgs.python.withPackages (p: [ p.pexpect ])) ]; }
-    ''
-      export LANG=C.UTF-8
-      export LC_ALL=C.UTF-8
+  prepare =
+    runCommand "prepare"
+      {
+        buildInputs = [
+          pkgs.qemu
+          (pkgs.python.withPackages (p: [ p.pexpect ]))
+        ];
+      }
+      ''
+        export LANG=C.UTF-8
+        export LC_ALL=C.UTF-8
 
-      # copy the images to work on them
-      cp --reflink=auto "${image}" disk.qcow2
-      cp --reflink=auto "${userdata}" userdata.qcow2
-      chmod +w disk.qcow2 userdata.qcow2
-
-      # Make some room on the root image
-      qemu-img resize disk.qcow2 +64G
-
-      # Run the automated installer
-      python ${./prepare.py} ${runVM} disk.qcow2 userdata.qcow2
-
-      # At this point the disk should have a named snapshot
-      qemu-img snapshot -l disk.qcow2 | grep prepare
-
-      mkdir $out
-      mv disk.qcow2 userdata.qcow2 $out/
-
-      cat <<WRAP > $out/runVM
-      #!${pkgs.stdenv.shell}
-      set -euo pipefail
-
-      if [[ ! -f disk.qcow2 ]]; then
-        # Setup the VM configuration on boot
-        cp --reflink=auto "$out/disk.qcow2" disk.qcow2
-        cp --reflink=auto "$out/userdata.qcow2" userdata.qcow2
+        # copy the images to work on them
+        cp --reflink=auto "${image}" disk.qcow2
+        cp --reflink=auto "${userdata}" userdata.qcow2
         chmod +w disk.qcow2 userdata.qcow2
-      fi
 
-      # And finally boot qemu with a bunch of arguments
-      args=(
-        -loadvm prepare
-      )
+        # Make some room on the root image
+        qemu-img resize disk.qcow2 +64G
 
-      echo "Starting VM."
-      echo "To login: ubuntu / ubuntu"
-      echo "To quit: type 'Ctrl+a c' then 'quit'"
-      echo "Press enter in a few seconds"
-      exec ${runVM} disk.qcow2 userdata.qcow2 "\''${args[@]}" "\$@"
-      WRAP
-      chmod +x $out/runVM
-    '';
+        # Run the automated installer
+        python ${./prepare.py} ${runVM} disk.qcow2 userdata.qcow2
+
+        # At this point the disk should have a named snapshot
+        qemu-img snapshot -l disk.qcow2 | grep prepare
+
+        mkdir $out
+        mv disk.qcow2 userdata.qcow2 $out/
+
+        cat <<WRAP > $out/runVM
+        #!${pkgs.stdenv.shell}
+        set -euo pipefail
+
+        if [[ ! -f disk.qcow2 ]]; then
+          # Setup the VM configuration on boot
+          cp --reflink=auto "$out/disk.qcow2" disk.qcow2
+          cp --reflink=auto "$out/userdata.qcow2" userdata.qcow2
+          chmod +w disk.qcow2 userdata.qcow2
+        fi
+
+        # And finally boot qemu with a bunch of arguments
+        args=(
+          -loadvm prepare
+        )
+
+        echo "Starting VM."
+        echo "To login: ubuntu / ubuntu"
+        echo "To quit: type 'Ctrl+a c' then 'quit'"
+        echo "Press enter in a few seconds"
+        exec ${runVM} disk.qcow2 userdata.qcow2 "\''${args[@]}" "\$@"
+        WRAP
+        chmod +x $out/runVM
+      '';
 
   # TODO: actually inject the installer, boot the VM and run some test
   /*
-  test = runCommand "test"
-    { __noChroot = true; buildInputs = [ pkgs.curl ]; }
-    ''
-      curl 1.1.1.1 > $out
-    '';
+    test = runCommand "test"
+      { __noChroot = true; buildInputs = [ pkgs.curl ]; }
+      ''
+        curl 1.1.1.1 > $out
+      '';
   */
 }

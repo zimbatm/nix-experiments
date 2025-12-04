@@ -18,7 +18,11 @@ in
     name = "toNix";
     text = toNix {
       str = "string";
-      list = [ 1 2 3 ];
+      list = [
+        1
+        2
+        3
+      ];
       num = 3;
       attrs = {
         a = "a";

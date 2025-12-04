@@ -4,16 +4,8 @@
 let
   fetch = import ./eval-fetch.nix;
 
-  fetchOrPath = value:
-    if builtins.typeOf value == "set" then
-      fetch value
-    else
-      toString value;
+  fetchOrPath = value: if builtins.typeOf value == "set" then fetch value else toString value;
 
-  sources =
-    if builtins.isAttrs path then
-      path
-    else
-      import "${toString path}";
+  sources = if builtins.isAttrs path then path else import "${toString path}";
 in
 builtins.mapAttrs (_: fetchOrPath) sources

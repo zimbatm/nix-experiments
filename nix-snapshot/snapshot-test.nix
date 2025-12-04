@@ -3,13 +3,17 @@ let
   # First run `nix-build snapshot.nix --argstr path $PWD/nix`
   pkgSnap = import ./result;
 
-  mkFoo = drv:
+  mkFoo =
+    drv:
     derivation {
       buildInputs = [ drv ];
       name = "xxx";
       system = builtins.currentSystem;
       builder = "/bin/sh";
-      args = [ "-c" "echo XXX > $out" ];
+      args = [
+        "-c"
+        "echo XXX > $out"
+      ];
     };
 in
 {

@@ -1,4 +1,6 @@
-{ pkgs ? import <nixpkgs> {} }:
+{
+  pkgs ? import <nixpkgs> { },
+}:
 
 pkgs.writeShellScriptBin "hello-trampoline" ''
   echo "🎉 Hello from nix-trampoline!"

@@ -2,12 +2,17 @@ let
   nixConfig = import <nix/config.nix>;
   nixBin = builtins.storePath nixConfig.nixBinDir;
 in
-{ system ? builtins.currentSystem }:
+{
+  system ? builtins.currentSystem,
+}:
 derivation {
   inherit system;
   name = "snapshot-in-drv";
   builder = "/bin/sh";
-  args = [ "-ec" ". $buildScriptPath" ];
+  args = [
+    "-ec"
+    ". $buildScriptPath"
+  ];
   passAsFile = [ "buildScript" ];
   buildScript = ''
     export HOME=$PWD/home

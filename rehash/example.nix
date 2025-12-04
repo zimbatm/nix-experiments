@@ -12,7 +12,8 @@ let
     echo CONTENT > $out
   '';
 
-  mkPackageB = { packageA }:
+  mkPackageB =
+    { packageA }:
     runCommand "package-b" { } ''
       # depends on package-a
       echo ${packageA} > $out
@@ -33,6 +34,5 @@ rec {
 
   test =
     assert withRehash.packageB.outPath == withRehash.packageB'.outPath;
-    true
-  ;
+    true;
 }

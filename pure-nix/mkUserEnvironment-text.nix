@@ -1,4 +1,6 @@
-{ system ? builtins.currentSystem }:
+{
+  system ? builtins.currentSystem,
+}:
 let
   mkUserEnvironment = import ./mkUserEnvironment.nix;
 

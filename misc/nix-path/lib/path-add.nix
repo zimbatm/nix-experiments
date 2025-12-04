@@ -1,6 +1,13 @@
-{ path
-, name
-, url
-, ...
+{
+  path,
+  name,
+  url,
+  ...
 }@args:
-(import path) // { "${name}" = builtins.removeAttrs args [ "path" "name" ]; }
+(import path)
+// {
+  "${name}" = builtins.removeAttrs args [
+    "path"
+    "name"
+  ];
+}

@@ -1,5 +1,9 @@
 # Playing with how a service definition could look like.
-{ pkgs, config, lib, }:
+{
+  pkgs,
+  config,
+  lib,
+}:
 let
   cfg = config.svc;
 in
@@ -24,7 +28,7 @@ in
   config = {
     # The output is a set of containers.
     services.default = {
-      command = [(lib.getExe cfg.package)];
+      command = [ (lib.getExe cfg.package) ];
 
       ports = [
         { tcp = 80; }

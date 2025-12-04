@@ -15,8 +15,8 @@
 # * derivations: a list of derivations
 {
   # A list of derivations to install
-  derivations
-, system ? builtins.currentSystem
+  derivations,
+  system ? builtins.currentSystem,
 }:
 let
   inherit (builtins)
@@ -36,17 +36,23 @@ let
     ;
 
   # Copied from <nixpkgs/lib>
-  mapAttrsToList = f: attrs:
-    map (name: f name attrs.${name}) (attrNames attrs);
+  mapAttrsToList = f: attrs: map (name: f name attrs.${name}) (attrNames attrs);
 
   # Copied from <nixpkgs/lib>
-  genAttrs = names: f:
-    listToAttrs (map (n: { name = n; value = f n; }) names);
+  genAttrs =
+    names: f:
+    listToAttrs (
+      map (n: {
+        name = n;
+        value = f n;
+      }) names
+    );
 
   # Copied from https://github.com/nixos/nix/blob/e02481ded216ffb5b06b413e3695d4e11e62e02f/corepkgs/buildenv.nix
   #
   # This was available at <nix/buildenv.nix>, until it got removed in Nix.
-  buildenv = { derivations, manifest }:
+  buildenv =
+    { derivations, manifest }:
     derivation {
       name = "user-environment";
       system = "builtin";
@@ -55,15 +61,15 @@ let
       inherit manifest;
 
       # !!! grmbl, need structured data for passing this in a clean way.
-      derivations =
-        map
-          (d:
-            [
-              (d.meta.active or "true")
-              (d.meta.priority or 5)
-              (length d.outputs)
-            ] ++ map (output: getAttr output d) d.outputs)
-          derivations;
+      derivations = map (
+        d:
+        [
+          (d.meta.active or "true")
+          (d.meta.priority or 5)
+          (length d.outputs)
+        ]
+        ++ map (output: getAttr output d) d.outputs
+      ) derivations;
 
       # Building user environments remotely just causes huge amounts of
       # network traffic, so don't do that.
@@ -74,7 +80,8 @@ let
     };
 
   # Copied from ./writeText.nix
-  writeText = name: text:
+  writeText =
+    name: text:
     derivation {
       inherit name system;
 
@@ -94,10 +101,17 @@ let
         /bin/sh "$catPath" < "$textPath" > "$out"
       '';
 
-      passAsFile = [ "text" "cat" "script" ];
+      passAsFile = [
+        "text"
+        "cat"
+        "script"
+      ];
 
       builder = "/bin/sh";
-      args = [ "-c" ". $scriptPath" ];
+      args = [
+        "-c"
+        ". $scriptPath"
+      ];
 
       # Pointless to do this on a remote machine.
       preferLocalBuild = true;
@@ -105,39 +119,49 @@ let
     };
 
   # Escape Nix strings
-  stringEscape = str:
-    "\"" + (
-      replaceStrings
-        [ "\\" "\"" "\n" "\r" "\t" ]
-        [ "\\\\" "\\" "\\n" "\\r" "\\t" ]
-        str
-    )
-    + "\"";
+  stringEscape =
+    str:
+    "\"" + (replaceStrings [ "\\" "\"" "\n" "\r" "\t" ] [ "\\\\" "\\" "\\n" "\\r" "\\t" ] str) + "\"";
 
   # Like builtins.JSON but to output Nix code
-  toNix = value:
-    if isString value then stringEscape value
-    else if isInt value then toString value
-    else if isPath value then toString value
-    else if true == value then "true"
-    else if false == value then "false"
-    else if null == value then "null"
+  toNix =
+    value:
+    if isString value then
+      stringEscape value
+    else if isInt value then
+      toString value
+    else if isPath value then
+      toString value
+    else if true == value then
+      "true"
+    else if false == value then
+      "false"
+    else if null == value then
+      "null"
     else if isAttrs value then
       "{ " + concatStringsSep " " (mapAttrsToList (k: v: "${k} = ${toNix v};") value) + " }"
     else if isList value then
-      "[ ${ concatStringsSep " " (map toNix value) } ]"
-    else throw "type ${typeOf value} not supported";
+      "[ ${concatStringsSep " " (map toNix value)} ]"
+    else
+      throw "type ${typeOf value} not supported";
 
   # Generate a nix-env compatible manifest.nix file
-  genManifest = drv:
+  genManifest =
+    drv:
     let
       outputs =
         drv.meta.outputsToInstall or
-          # install the first output
-          [ (head drv.outputs) ];
+        # install the first output
+        [ (head drv.outputs) ];
 
       base = {
-        inherit (drv) meta name outPath system type;
+        inherit (drv)
+          meta
+          name
+          outPath
+          system
+          type
+          ;
         out = { inherit (drv) outPath; };
         inherit outputs;
       };
@@ -150,10 +174,7 @@ let
     in
     base // outs;
 
-  writeManifest = derivations:
-    writeText "env-manifest.nix" (
-      toNix (map genManifest derivations)
-    );
+  writeManifest = derivations: writeText "env-manifest.nix" (toNix (map genManifest derivations));
 in
 buildenv {
   inherit derivations;

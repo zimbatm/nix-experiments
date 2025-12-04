@@ -1,5 +1,8 @@
 # TODO: rebuild this
-{ path, system ? builtins.currentSystem }:
+{
+  path,
+  system ? builtins.currentSystem,
+}:
 let
   # sha1 + base32 encoding
   STORE_HASH_LEN = 32;
@@ -7,16 +10,16 @@ let
   STORE_DIR_LEN = builtins.stringLength builtins.storeDir + 1;
 
   # Returns a store path out of a non-store path
-  storePath =
-    builtins.path { name = "source"; path = path; };
+  storePath = builtins.path {
+    name = "source";
+    path = path;
+  };
 
   # Return the hash of a store path
-  storePathHash = storePath:
-    builtins.substring STORE_DIR_LEN STORE_HASH_LEN storePath;
+  storePathHash = storePath: builtins.substring STORE_DIR_LEN STORE_HASH_LEN storePath;
 
   # Returns the name of a store path
-  storePathName = storePath:
-    builtins.substring (STORE_DIR_LEN + STORE_HASH_LEN) 99999 storePath;
+  storePathName = storePath: builtins.substring (STORE_DIR_LEN + STORE_HASH_LEN) 99999 storePath;
 
   # The XDG_CACHE dir for nixpkgs-snapshot
   cacheDir =
@@ -40,7 +43,10 @@ let
       inherit system;
       name = "path-data.json";
       builder = "/bin/sh";
-      args = [ "-c" "echo '${data}' > $out" ];
+      args = [
+        "-c"
+        "echo '${data}' > $out"
+      ];
     };
 
   # Load a nix folder that contains a default.nix. First check in the
@@ -52,7 +58,8 @@ let
     in
     if builtins.pathExists cacheDir then
       let
-        toFakeDrv = attr: type:
+        toFakeDrv =
+          attr: type:
           assert type == "symlink";
           rec {
             type = "derivation";
@@ -66,15 +73,14 @@ let
       in
       builtins.mapAttrs toFakeDrv data
     else if builtins.isAttrs pathImport then
-    # the ideal scenario
+      # the ideal scenario
       pathImport
     else if builtins.isFunction pathImport then
-    # if it's a function, assume it's nixpkgs and make it pure.
-      pathImport
-        {
-          config = { };
-          overlays = [ ];
-        }
+      # if it's a function, assume it's nixpkgs and make it pure.
+      pathImport {
+        config = { };
+        overlays = [ ];
+      }
     else
       throw "${builtins.typeOf pathImport} is not supported";
 in
