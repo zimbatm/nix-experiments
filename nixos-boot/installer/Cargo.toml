@@ -1,0 +1,47 @@
+[package]
+name = "nixos-boot-installer"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal NixOS installer agent for UKI-based deployments"
+license = "MIT"
+
+[features]
+default = ["config-cmdline", "config-gce", "config-ec2", "config-file", "config-interactive"]
+# Configuration sources - enable only the ones needed for your target
+config-cmdline = []      # Kernel command line parameters (nixos-boot.*)
+config-gce = []          # Google Compute Engine metadata service
+config-ec2 = []          # AWS EC2 instance metadata service (IMDSv2)
+config-file = []         # Cloud-init style file-based user-data
+config-interactive = []  # Interactive console/web UI configuration
+
+[dependencies]
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP client for fetching from binary caches
+reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
+
+# JSON parsing for configuration
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# TODO: Add nix-compat when stable for NAR handling
+# nix-compat = "0.1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

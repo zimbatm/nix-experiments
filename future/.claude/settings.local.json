@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(git add:*)",
+      "Bash(nix-shell:*)",
+      "Bash(rg:*)",
+      "Bash(git mv:*)",
+      "Bash(./result/bin/future-tags:*)",
+      "Bash(nix flake check:*)"
+    ],
+    "deny": []
+  }
+}
